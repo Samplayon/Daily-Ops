@@ -6071,12 +6071,16 @@ async function buildRuleBasedReshufflePlan() {
     throw new Error("The saved rules did not require any schedule changes right now.");
   }
 
+  const savedRuleCount = allRuleText.length;
+  const actionableRuleCount = coverageRules.length + (queueRoutingCount ? 1 : 0);
+
   return {
     title: "Rule-based schedule reshuffle",
-    summary: `Applied ${coverageRules.length + (queueRoutingCount ? 1 : 0)} scheduling rule${coverageRules.length + (queueRoutingCount ? 1 : 0) === 1 ? "" : "s"} across All, Support, and ACO.`,
+    summary: `Reviewed ${savedRuleCount} saved rule${savedRuleCount === 1 ? "" : "s"} and applied ${actionableRuleCount} direct scheduling rule${actionableRuleCount === 1 ? "" : "s"} across All, Support, and ACO.`,
     actions,
     details: detailLines,
-    ruleCount: coverageRules.length + (queueRoutingCount ? 1 : 0),
+    ruleCount: savedRuleCount,
+    actionableRuleCount,
   };
 }
 
