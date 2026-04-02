@@ -3601,12 +3601,22 @@ function updateAutomationSettings(automationId, updates) {
 
 const schedulingRuleScopes = ["all", "support", "aco"];
 let activeSchedulingRuleScope = "all";
+let schedulingRulesState = null;
 
 function defaultSchedulingRules() {
   return {
     all: [""],
     support: [""],
     aco: [""],
+  };
+}
+
+function cloneSchedulingRules(ruleGroups) {
+  const defaults = defaultSchedulingRules();
+  return {
+    all: [...(ruleGroups?.all ?? defaults.all)],
+    support: [...(ruleGroups?.support ?? defaults.support)],
+    aco: [...(ruleGroups?.aco ?? defaults.aco)],
   };
 }
 
@@ -3618,35 +3628,67 @@ function normalizeSchedulingRuleList(rules) {
 }
 
 function loadSchedulingRules() {
+  if (schedulingRulesState) {
+    return cloneSchedulingRules(schedulingRulesState);
+  }
   try {
     const raw = window.localStorage.getItem(getSchedulingRulesKey());
     const parsed = raw ? JSON.parse(raw) : null;
     if (Array.isArray(parsed)) {
-      return {
+      schedulingRulesState = {
         all: normalizeSchedulingRuleList(parsed),
         support: [""],
         aco: [""],
       };
+      return cloneSchedulingRules(schedulingRulesState);
     }
     const defaults = defaultSchedulingRules();
-    return {
+    schedulingRulesState = {
       all: normalizeSchedulingRuleList(parsed?.all ?? defaults.all),
       support: normalizeSchedulingRuleList(parsed?.support ?? defaults.support),
       aco: normalizeSchedulingRuleList(parsed?.aco ?? defaults.aco),
     };
+    return cloneSchedulingRules(schedulingRulesState);
   } catch {
-    return defaultSchedulingRules();
+    schedulingRulesState = defaultSchedulingRules();
+    return cloneSchedulingRules(schedulingRulesState);
   }
 }
 
 function saveSchedulingRules(ruleGroups) {
   const defaults = defaultSchedulingRules();
-  const payload = {
+  schedulingRulesState = {
     all: normalizeSchedulingRuleList(ruleGroups?.all ?? defaults.all),
     support: normalizeSchedulingRuleList(ruleGroups?.support ?? defaults.support),
     aco: normalizeSchedulingRuleList(ruleGroups?.aco ?? defaults.aco),
   };
-  window.localStorage.setItem(getSchedulingRulesKey(), JSON.stringify(payload));
+  window.localStorage.setItem(getSchedulingRulesKey(), JSON.stringify(schedulingRulesState));
+  return cloneSchedulingRules(schedulingRulesState);
+}
+
+async function syncSchedulingRulesFromServer() {
+  try {
+    const response = await fetch('/api/scheduling-rules');
+    if (!response.ok) throw new Error(`Failed to load rules (${response.status})`);
+    const payload = await response.json();
+    schedulingRulesState = saveSchedulingRules(payload?.rules || defaultSchedulingRules());
+    renderSchedulingRules();
+  } catch {
+    renderSchedulingRules();
+  }
+}
+
+async function persistSchedulingRules(ruleGroups) {
+  try {
+    const response = await fetch('/api/scheduling-rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rules: ruleGroups }),
+    });
+    if (!response.ok) throw new Error(`Failed to save rules (${response.status})`);
+    const payload = await response.json();
+    schedulingRulesState = saveSchedulingRules(payload?.rules || ruleGroups);
+  } catch {}
 }
 
 function getSchedulingScopeLabel(scope) {
@@ -3729,7 +3771,8 @@ function renderSchedulingRules() {
       const nextRules = normalizeSchedulingRuleList(nextRuleGroups[activeSchedulingRuleScope]);
       nextRules[Number(event.target.dataset.ruleIndex)] = event.target.value;
       nextRuleGroups[activeSchedulingRuleScope] = nextRules;
-      saveSchedulingRules(nextRuleGroups);
+      const savedRules = saveSchedulingRules(nextRuleGroups);
+      void persistSchedulingRules(savedRules);
     });
   });
 
@@ -3739,7 +3782,8 @@ function renderSchedulingRules() {
       nextRuleGroups[activeSchedulingRuleScope] = normalizeSchedulingRuleList(nextRuleGroups[activeSchedulingRuleScope]).filter(
         (_, index) => index !== Number(button.dataset.ruleRemove)
       );
-      saveSchedulingRules(nextRuleGroups);
+      const savedRules = saveSchedulingRules(nextRuleGroups);
+      void persistSchedulingRules(savedRules);
       renderSchedulingRules();
     });
   });
@@ -3749,7 +3793,8 @@ function renderSchedulingRules() {
     const nextRules = normalizeSchedulingRuleList(nextRuleGroups[activeSchedulingRuleScope]);
     nextRules.push("");
     nextRuleGroups[activeSchedulingRuleScope] = nextRules;
-    saveSchedulingRules(nextRuleGroups);
+    const savedRules = saveSchedulingRules(nextRuleGroups);
+    void persistSchedulingRules(savedRules);
     renderSchedulingRules();
   });
 }
@@ -6940,4 +6985,5 @@ archivePreviewDetails?.addEventListener("toggle", () => {
 });
 refreshArchiveLibrary().finally(() => {
   render();
+  void syncSchedulingRulesFromServer();
 });

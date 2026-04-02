@@ -2,6 +2,7 @@ const OPENAI_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
 const ARCHIVE_SETTINGS_OBJECT = "__config__-archive-settings.json";
 const SNAPSHOT_PREFIX = "__snapshot__-";
+const SCHEDULING_RULES_OBJECT = "__config__-scheduling-rules.json";
 
 const PLAN_SCHEMA = {
   type: "object",
@@ -234,6 +235,49 @@ async function writeArchiveSettings(settings) {
   return merged;
 }
 
+function defaultSchedulingRules() {
+  return {
+    all: [""],
+    support: [""],
+    aco: [""],
+  };
+}
+
+function normalizeSchedulingRules(payload) {
+  const defaults = defaultSchedulingRules();
+  if (Array.isArray(payload)) {
+    return {
+      all: payload.length ? payload.map((rule) => String(rule || "").trimEnd()) : [""],
+      support: defaults.support,
+      aco: defaults.aco,
+    };
+  }
+  return {
+    all: Array.isArray(payload?.all) && payload.all.length ? payload.all.map((rule) => String(rule || "").trimEnd()) : defaults.all,
+    support: Array.isArray(payload?.support) && payload.support.length ? payload.support.map((rule) => String(rule || "").trimEnd()) : defaults.support,
+    aco: Array.isArray(payload?.aco) && payload.aco.length ? payload.aco.map((rule) => String(rule || "").trimEnd()) : defaults.aco,
+  };
+}
+
+async function readSchedulingRules() {
+  try {
+    const { body } = await downloadObject(SCHEDULING_RULES_OBJECT);
+    return normalizeSchedulingRules(JSON.parse(body.toString("utf8") || "{}"));
+  } catch {
+    return defaultSchedulingRules();
+  }
+}
+
+async function writeSchedulingRules(rules) {
+  const normalized = normalizeSchedulingRules(rules);
+  await uploadObject(
+    SCHEDULING_RULES_OBJECT,
+    "application/json; charset=utf-8",
+    Buffer.from(JSON.stringify(normalized, null, 2))
+  );
+  return normalized;
+}
+
 async function saveArchiveSnapshot(dateKey, csv) {
   const objectName = snapshotObjectForDate(dateKey);
   await uploadObject(objectName, "text/csv; charset=utf-8", Buffer.from(String(csv || ""), "utf8"));
@@ -425,10 +469,12 @@ module.exports = {
   processArchiveBacklog,
   readArchiveSettings,
   readJsonBody,
+  readSchedulingRules,
   saveArchiveSnapshot,
   sendArchiveError,
   sendJson,
   sendPlanError,
   uploadObject,
   writeArchiveSettings,
+  writeSchedulingRules,
 };
