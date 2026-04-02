@@ -233,6 +233,7 @@
             <button id="shift-tab" type="button" class="workspace-tab secondary-button">Shift Changes</button>
             <button id="skills-tab" type="button" class="workspace-tab secondary-button">Skills</button>
             <button id="automations-tab" type="button" class="workspace-tab secondary-button">Automations</button>
+            <button id="admin-tab" type="button" class="workspace-tab secondary-button">Admin</button>
           </div>
 
           <div id="board-view" class="workspace-view">
@@ -347,6 +348,19 @@
             </div>
           </div>
 
+
+          <div id="admin-view" class="workspace-view hidden">
+            <section class="panel nested-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Admin</h2>
+                  <p>Manage your admin identity settings and password here.</p>
+                </div>
+              </div>
+              <div id="admin-password-card"></div>
+            </section>
+          </div>
+
           <div id="automations-view" class="workspace-view hidden">
             <div class="panel-header">
               <div>
@@ -354,15 +368,6 @@
                 <p>Turn automations on or off and test them manually from one place.</p>
               </div>
             </div>
-            <section class="panel nested-panel">
-              <div class="panel-header">
-                <div>
-                  <h2>Password</h2>
-                  <p>Change the password for the admin identity you are signed in as.</p>
-                </div>
-              </div>
-              <div id="admin-password-card"></div>
-            </section>
             <section class="panel nested-panel">
               <div class="panel-header">
                 <div>

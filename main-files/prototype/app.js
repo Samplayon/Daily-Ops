@@ -2344,10 +2344,12 @@ const boardTabButton = document.getElementById("board-tab");
 const shiftTabButton = document.getElementById("shift-tab");
 const skillsTabButton = document.getElementById("skills-tab");
 const automationsTabButton = document.getElementById("automations-tab");
+const adminTabButton = document.getElementById("admin-tab");
 const boardView = document.getElementById("board-view");
 const shiftView = document.getElementById("shift-view");
 const skillsView = document.getElementById("skills-view");
 const automationsView = document.getElementById("automations-view");
+const adminView = document.getElementById("admin-view");
 const shiftSearchInput = document.getElementById("shift-search-input");
 const shiftEditorList = document.getElementById("shift-editor-list");
 const skillsMatrix = document.getElementById("skills-matrix");
@@ -6347,16 +6349,19 @@ function renderWorkspaceTabs() {
   const showingShift = activeWorkspaceTab === "shift";
   const showingSkills = activeWorkspaceTab === "skills";
   const showingAutomations = activeWorkspaceTab === "automations";
+  const showingAdmin = activeWorkspaceTab === "admin";
 
   boardView.classList.toggle("hidden", !showingBoard);
   shiftView.classList.toggle("hidden", !showingShift);
   skillsView.classList.toggle("hidden", !showingSkills);
   automationsView.classList.toggle("hidden", !showingAutomations);
+  adminView.classList.toggle("hidden", !showingAdmin);
 
   boardTabButton.classList.toggle("active", showingBoard);
   shiftTabButton.classList.toggle("active", showingShift);
   skillsTabButton.classList.toggle("active", showingSkills);
   automationsTabButton.classList.toggle("active", showingAutomations);
+  adminTabButton.classList.toggle("active", showingAdmin);
 }
 
 function renderAdminPasswordManager() {
@@ -7324,6 +7329,10 @@ skillsTabButton.addEventListener("click", () => {
 });
 automationsTabButton.addEventListener("click", () => {
   activeWorkspaceTab = "automations";
+  render();
+});
+adminTabButton.addEventListener("click", () => {
+  activeWorkspaceTab = "admin";
   render();
 });
 shiftSearchInput?.addEventListener("input", (event) => {
