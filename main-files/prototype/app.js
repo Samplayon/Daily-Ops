@@ -2366,6 +2366,7 @@ let lastArchiveSyncSignature = "";
 let archivePreviewContent = {};
 let archivePreviewRows = [];
 let notificationCheckTimer = null;
+let notificationAudioContext = null;
 let editableSkillAssignments = [...baseEditableSkillAssignments];
 let assignmentAliases = [...baseAssignmentAliases];
 let assignmentOptions = [];
@@ -3180,12 +3181,49 @@ function notificationsSupported() {
   return typeof window !== "undefined" && "Notification" in window;
 }
 
+function primeNotificationAudio() {
+  if (typeof window === "undefined") return null;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  if (!notificationAudioContext) {
+    notificationAudioContext = new AudioContextClass();
+  }
+  if (notificationAudioContext.state === "suspended") {
+    notificationAudioContext.resume().catch(() => {});
+  }
+  return notificationAudioContext;
+}
+
+function playNotificationSound() {
+  const audioContext = primeNotificationAudio();
+  if (!audioContext || audioContext.state !== "running") return false;
+
+  const now = audioContext.currentTime;
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(880, now);
+  oscillator.frequency.exponentialRampToValueAtTime(660, now + 0.18);
+
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+  oscillator.start(now);
+  oscillator.stop(now + 0.24);
+  return true;
+}
+
 async function requestNotificationPermission() {
   if (!notificationsSupported()) {
     agentAlertStatus.textContent = "This browser does not support push notifications.";
     return "denied";
   }
 
+  primeNotificationAudio();
   const permission = await Notification.requestPermission();
   render();
   return permission;
@@ -3194,6 +3232,7 @@ async function requestNotificationPermission() {
 function showBrowserNotification(title, body) {
   if (!notificationsSupported() || Notification.permission !== "granted") return false;
   new Notification(title, { body, icon: "./playon-logo.svg" });
+  playNotificationSound();
   return true;
 }
 
@@ -3286,8 +3325,11 @@ async function sendTestNotification() {
     timeBlocks.length - 1
   );
   const assignment = person.assignments[activeBlockIndex]?.[0] || "Open";
-  showBrowserNotification("Shift Alert", `Test: you are on ${assignment} for ${formatBlockLabel(activeBlockIndex)}.`);
-  agentAlertStatus.textContent = "Test notification sent.";
+  primeNotificationAudio();
+  const sent = showBrowserNotification("Shift Alert", `Test: you are on ${assignment} for ${formatBlockLabel(activeBlockIndex)}.`);
+  agentAlertStatus.textContent = sent
+    ? "Test notification sent with an in-app chime."
+    : "We tried to send the test notification, but your browser did not allow it.";
 }
 
 function buildChatgptInsightsPrompt() {
