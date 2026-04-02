@@ -213,6 +213,10 @@ body[data-theme="dark"] .out-only-card {
   font-weight: 600;
 }
 
+.portal-feedback-success {
+  color: #15803d;
+}
+
 .assistant-scope-toggle {
   display: grid;
   gap: 10px;
@@ -1185,6 +1189,11 @@ select {
 .rules-card {
   display: grid;
   gap: 16px;
+}
+
+.admin-password-form {
+  display: grid;
+  gap: 14px;
 }
 
 .rules-scope-switcher {

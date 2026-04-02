@@ -25,7 +25,7 @@ const baseEditableSkillAssignments = [
   "Calibrations",
   "Game Reports",
 ];
-const ADMIN_PASSWORD = "1234";
+const LEGACY_ADMIN_PASSWORD = "1234";
 const acoNames = new Set([
   "Adam Nye",
   "Alyssa Tankersley",
@@ -2257,7 +2257,7 @@ function buildAdminProfiles() {
     {
       id: "samuel-williamson-admin",
       name: "Samuel Williamson",
-      label: "Samuel Williamson (Admin)",
+      label: "Samuel Williamson",
       scope: "all",
       canViewAuditLog: true,
     },
@@ -2266,8 +2266,8 @@ function buildAdminProfiles() {
       .map((manager) => ({
         id: `${normalizeText(manager).replace(/[^a-z0-9]+/g, "-")}-manager`,
         name: manager,
-        label: `${manager} Team`,
-        scope: manager,
+        label: manager,
+        scope: "all",
         canViewAuditLog: false,
       })),
   ];
@@ -2353,6 +2353,7 @@ const shiftEditorList = document.getElementById("shift-editor-list");
 const skillsMatrix = document.getElementById("skills-matrix");
 const schedulingRulesCard = document.getElementById("scheduling-rules-card");
 const automationsList = document.getElementById("automations-list");
+const adminPasswordCard = document.getElementById("admin-password-card");
 const auditLogPanel = document.getElementById("audit-log-panel");
 const auditLogList = document.getElementById("audit-log-list");
 const archivesList = document.getElementById("archives-list");
@@ -2429,11 +2430,17 @@ let messages = [
 
 const shiftOverrideStorageKey = "daily-ops-shift-overrides-v1";
 const auditLogFallbackStorageKey = "daily-ops-audit-log-v1";
+const adminPasswordsStorageKey = "daily-ops-admin-passwords-v1";
 const shiftTimeOptions = Array.from({ length: 17 }, (_, index) => 8 + index);
 let auditLogEntries = [];
 let auditLogLoaded = false;
 let auditLogLoading = false;
 let auditLogError = "";
+let adminPasswordsState = null;
+let adminPasswordSaveState = {
+  message: "",
+  tone: "",
+};
 
 function getTodayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -2621,10 +2628,7 @@ function populateAdminIdentitySelect() {
 function renderAdminIdentityBadge() {
   if (!adminIdentityBadge) return;
   const profile = getCurrentAdminProfile();
-  adminIdentityBadge.textContent =
-    profile.scope === "all"
-      ? `Signed in as ${profile.name}`
-      : `Signed in as ${profile.name} • team view`;
+  adminIdentityBadge.textContent = `Signed in as ${profile.name}`;
 }
 
 function populatePersonFilter() {
@@ -2696,7 +2700,7 @@ function handleAdminLogin() {
     adminLoginFeedback.textContent = "Choose an admin view.";
     return;
   }
-  if (adminPasswordInput.value === ADMIN_PASSWORD) {
+  if (adminPasswordInput.value === getAdminPasswordForProfile(adminIdentitySelect.value)) {
     adminLoginFeedback.textContent = "";
     currentAdminProfileId = adminIdentitySelect.value;
     adminPasswordInput.value = "";
@@ -2914,6 +2918,85 @@ function loadFallbackAuditLog() {
 
 function saveFallbackAuditLog(entries) {
   window.localStorage.setItem(auditLogFallbackStorageKey, JSON.stringify(entries));
+}
+
+function defaultAdminPasswords() {
+  return {};
+}
+
+function cloneAdminPasswords(passwords) {
+  return { ...(passwords || {}) };
+}
+
+function normalizeAdminPasswords(passwords) {
+  if (!passwords || typeof passwords !== "object" || Array.isArray(passwords)) {
+    return defaultAdminPasswords();
+  }
+
+  return Object.fromEntries(
+    Object.entries(passwords)
+      .map(([key, value]) => [String(key || "").trim(), String(value || "").trim()])
+      .filter(([key, value]) => key && value)
+  );
+}
+
+function loadAdminPasswords() {
+  if (adminPasswordsState) {
+    return cloneAdminPasswords(adminPasswordsState);
+  }
+
+  try {
+    const raw = window.localStorage.getItem(adminPasswordsStorageKey);
+    adminPasswordsState = normalizeAdminPasswords(raw ? JSON.parse(raw) : {});
+  } catch {
+    adminPasswordsState = defaultAdminPasswords();
+  }
+
+  return cloneAdminPasswords(adminPasswordsState);
+}
+
+function saveAdminPasswords(passwords) {
+  adminPasswordsState = normalizeAdminPasswords(passwords);
+  window.localStorage.setItem(adminPasswordsStorageKey, JSON.stringify(adminPasswordsState));
+  return cloneAdminPasswords(adminPasswordsState);
+}
+
+function getAdminPasswordForProfile(profileId) {
+  const passwords = loadAdminPasswords();
+  return passwords[profileId] || LEGACY_ADMIN_PASSWORD;
+}
+
+async function syncAdminPasswordsFromServer() {
+  if (!backendAvailable) return;
+
+  try {
+    const response = await fetch("/api/admin-passwords");
+    const payload = parseJsonSafely(await response.text(), {});
+    if (!response.ok) {
+      throw new Error(payload.details || payload.error || `Failed to load admin passwords (${response.status})`);
+    }
+    saveAdminPasswords(payload?.passwords || defaultAdminPasswords());
+  } catch {
+    // Keep local fallback working even if the shared config is unavailable.
+  }
+}
+
+async function persistAdminPasswords(passwords) {
+  if (!backendAvailable) {
+    saveAdminPasswords(passwords);
+    return cloneAdminPasswords(passwords);
+  }
+
+  const response = await fetch("/api/admin-passwords", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ passwords }),
+  });
+  const payload = parseJsonSafely(await response.text(), {});
+  if (!response.ok) {
+    throw new Error(payload.details || payload.error || `Failed to save admin passwords (${response.status})`);
+  }
+  return saveAdminPasswords(payload?.passwords || passwords);
 }
 
 function parseJsonSafely(text, fallback = {}) {
@@ -6276,6 +6359,98 @@ function renderWorkspaceTabs() {
   automationsTabButton.classList.toggle("active", showingAutomations);
 }
 
+function renderAdminPasswordManager() {
+  if (!adminPasswordCard) return;
+
+  const profile = getCurrentAdminProfile();
+  adminPasswordCard.innerHTML = `
+    <form id="admin-password-form" class="admin-password-form">
+      <label>
+        <span>Signed in as</span>
+        <input type="text" class="portal-input" value="${profile.name}" disabled />
+      </label>
+      <label>
+        <span>Current password</span>
+        <input id="admin-current-password" type="password" class="portal-input" placeholder="Enter current password" />
+      </label>
+      <label>
+        <span>New password</span>
+        <input id="admin-new-password" type="password" class="portal-input" placeholder="Enter a new password" />
+      </label>
+      <label>
+        <span>Confirm new password</span>
+        <input id="admin-confirm-password" type="password" class="portal-input" placeholder="Re-enter the new password" />
+      </label>
+      <div class="assistant-builder-actions">
+        <button type="submit" class="secondary-button">Save Password</button>
+      </div>
+      <div class="portal-feedback ${adminPasswordSaveState.tone === "success" ? "portal-feedback-success" : ""}">
+        ${adminPasswordSaveState.message}
+      </div>
+    </form>
+  `;
+
+  adminPasswordCard.querySelector("#admin-password-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const currentPassword = adminPasswordCard.querySelector("#admin-current-password")?.value || "";
+    const newPassword = adminPasswordCard.querySelector("#admin-new-password")?.value || "";
+    const confirmPassword = adminPasswordCard.querySelector("#admin-confirm-password")?.value || "";
+    const currentExpectedPassword = getAdminPasswordForProfile(profile.id);
+
+    if (currentPassword !== currentExpectedPassword) {
+      adminPasswordSaveState = {
+        message: "Current password is incorrect.",
+        tone: "error",
+      };
+      renderAdminPasswordManager();
+      return;
+    }
+
+    if (newPassword.trim().length < 4) {
+      adminPasswordSaveState = {
+        message: "Use at least 4 characters for the new password.",
+        tone: "error",
+      };
+      renderAdminPasswordManager();
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      adminPasswordSaveState = {
+        message: "New password and confirmation do not match.",
+        tone: "error",
+      };
+      renderAdminPasswordManager();
+      return;
+    }
+
+    try {
+      const nextPasswords = {
+        ...loadAdminPasswords(),
+        [profile.id]: newPassword,
+      };
+      await persistAdminPasswords(nextPasswords);
+      adminPasswordSaveState = {
+        message: "Password updated.",
+        tone: "success",
+      };
+      await appendAuditLogEntry({
+        actionType: "password_change",
+        summary: `${profile.name} changed their admin password`,
+        details: ["Password updated successfully."],
+      });
+    } catch (error) {
+      adminPasswordSaveState = {
+        message: error.message || "Unable to update the password right now.",
+        tone: "error",
+      };
+    }
+
+    renderAdminPasswordManager();
+  });
+}
+
 function renderAutomations() {
   if (!automationsList) return;
 
@@ -7122,6 +7297,7 @@ function render() {
   renderSkillsMatrix(filteredTeam);
   renderAssignmentManager();
   renderSchedulingRules();
+  renderAdminPasswordManager();
   renderAutomations();
   renderAuditLog();
   renderArchives();
@@ -7300,4 +7476,5 @@ archivePreviewDetails?.addEventListener("toggle", () => {
 refreshArchiveLibrary().finally(() => {
   render();
   void syncSchedulingRulesFromServer();
+  void syncAdminPasswordsFromServer();
 });

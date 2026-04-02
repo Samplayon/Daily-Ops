@@ -4,6 +4,7 @@ const ARCHIVE_SETTINGS_OBJECT = "__config__-archive-settings.json";
 const SNAPSHOT_PREFIX = "__snapshot__-";
 const SCHEDULING_RULES_OBJECT = "__config__-scheduling-rules.json";
 const AUDIT_LOG_OBJECT = "__config__-audit-log.json";
+const ADMIN_PASSWORDS_OBJECT = "__config__-admin-passwords.json";
 
 const PLAN_SCHEMA = {
   type: "object",
@@ -248,6 +249,22 @@ function defaultAuditLog() {
   return [];
 }
 
+function defaultAdminPasswords() {
+  return {};
+}
+
+function normalizeAdminPasswords(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return defaultAdminPasswords();
+  }
+
+  return Object.fromEntries(
+    Object.entries(payload)
+      .map(([key, value]) => [String(key || "").trim(), String(value || "").trim()])
+      .filter(([key, value]) => key && value)
+  );
+}
+
 function normalizeAuditEntry(entry) {
   return {
     id: String(entry?.id || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`),
@@ -326,6 +343,25 @@ async function appendAuditLog(entry) {
   const existing = await readAuditLog();
   const nextEntries = [normalizeAuditEntry(entry), ...existing].slice(0, 250);
   return writeAuditLog(nextEntries);
+}
+
+async function readAdminPasswords() {
+  try {
+    const { body } = await downloadObject(ADMIN_PASSWORDS_OBJECT);
+    return normalizeAdminPasswords(JSON.parse(body.toString("utf8") || "{}"));
+  } catch {
+    return defaultAdminPasswords();
+  }
+}
+
+async function writeAdminPasswords(passwords) {
+  const normalized = normalizeAdminPasswords(passwords);
+  await uploadObject(
+    ADMIN_PASSWORDS_OBJECT,
+    "application/json; charset=utf-8",
+    Buffer.from(JSON.stringify(normalized, null, 2))
+  );
+  return normalized;
 }
 
 async function saveArchiveSnapshot(dateKey, csv) {
@@ -513,11 +549,13 @@ module.exports = {
   appendAuditLog,
   archiveSnapshotForDate,
   callOpenAIPlan,
+  defaultAdminPasswords,
   defaultArchiveSettings,
   downloadObject,
   getArchiveStatus,
   getSupabaseConfig,
   processArchiveBacklog,
+  readAdminPasswords,
   readAuditLog,
   readArchiveSettings,
   readJsonBody,
@@ -527,6 +565,7 @@ module.exports = {
   sendJson,
   sendPlanError,
   uploadObject,
+  writeAdminPasswords,
   writeArchiveSettings,
   writeAuditLog,
   writeSchedulingRules,
