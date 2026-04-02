@@ -3056,7 +3056,7 @@ async function requestNotificationPermission() {
 
 function showBrowserNotification(title, body) {
   if (!notificationsSupported() || Notification.permission !== "granted") return false;
-  new Notification(title, { body, icon: "./assets/playon-logo.svg" });
+  new Notification(title, { body, icon: "./playon-logo.svg" });
   return true;
 }
 
