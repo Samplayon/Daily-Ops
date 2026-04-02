@@ -2252,6 +2252,28 @@ const managers = [
     ].filter(looksLikeManagerName)
   ),
 ];
+function buildAdminProfiles() {
+  return [
+    {
+      id: "samuel-williamson-admin",
+      name: "Samuel Williamson",
+      label: "Samuel Williamson (Admin)",
+      scope: "all",
+      canViewAuditLog: true,
+    },
+    ...managers
+      .filter((manager) => manager !== "all")
+      .map((manager) => ({
+        id: `${normalizeText(manager).replace(/[^a-z0-9]+/g, "-")}-manager`,
+        name: manager,
+        label: `${manager} Team`,
+        scope: manager,
+        canViewAuditLog: false,
+      })),
+  ];
+}
+
+const adminProfiles = buildAdminProfiles();
 const assignmentManagerCard = document.getElementById("assignment-manager-card");
 
 const teamFilter = document.getElementById("team-filter");
@@ -2289,9 +2311,11 @@ const discardPlanButton = document.getElementById("discard-plan");
 const portalScreen = document.getElementById("portal-screen");
 const adminShell = document.getElementById("admin-shell");
 const agentShell = document.getElementById("agent-shell");
+const adminIdentitySelect = document.getElementById("admin-identity-select");
 const adminPasswordInput = document.getElementById("admin-password");
 const adminLoginButton = document.getElementById("admin-login");
 const adminLoginFeedback = document.getElementById("admin-login-feedback");
+const adminIdentityBadge = document.getElementById("admin-identity-badge");
 const agentSelect = document.getElementById("agent-select");
 const agentOpenButton = document.getElementById("agent-open");
 const backToHomeAdminButton = document.getElementById("back-to-home-admin");
@@ -2329,6 +2353,8 @@ const shiftEditorList = document.getElementById("shift-editor-list");
 const skillsMatrix = document.getElementById("skills-matrix");
 const schedulingRulesCard = document.getElementById("scheduling-rules-card");
 const automationsList = document.getElementById("automations-list");
+const auditLogPanel = document.getElementById("audit-log-panel");
+const auditLogList = document.getElementById("audit-log-list");
 const archivesList = document.getElementById("archives-list");
 const archivePreview = document.getElementById("archive-preview");
 const archivePreviewDetails = document.getElementById("archive-preview-details");
@@ -2382,6 +2408,7 @@ const automationDefinitions = [
   },
 ];
 let currentView = "portal";
+let currentAdminProfileId = adminProfiles[0].id;
 let selectedAgentId = "";
 let assistantTeamMode = "all";
 let assistantManagerMode = "all";
@@ -2401,7 +2428,12 @@ let messages = [
 ];
 
 const shiftOverrideStorageKey = "daily-ops-shift-overrides-v1";
+const auditLogFallbackStorageKey = "daily-ops-audit-log-v1";
 const shiftTimeOptions = Array.from({ length: 17 }, (_, index) => 8 + index);
+let auditLogEntries = [];
+let auditLogLoaded = false;
+let auditLogLoading = false;
+let auditLogError = "";
 
 function getTodayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -2518,6 +2550,7 @@ function saveShiftChange(person, schedule, mode) {
   const overrides = loadShiftOverrides();
   const personKey = personId(person);
   const todayKey = getTodayKey();
+  const previousSchedule = person.schedule;
 
   if (mode === "permanent") {
     overrides.permanent[personKey] = { schedule };
@@ -2530,6 +2563,17 @@ function saveShiftChange(person, schedule, mode) {
 
   saveShiftOverrides(overrides);
   applyScheduleToPerson(person, schedule);
+  if (currentView === "admin") {
+    void appendAuditLogEntry({
+      actionType: "shift_change",
+      summary: `${person.name} shift changed to ${schedule}`,
+      details: [
+        `Previous schedule: ${previousSchedule}`,
+        `New schedule: ${schedule}`,
+        mode === "permanent" ? "Scope: Permanent default schedule" : "Scope: Today only",
+      ],
+    });
+  }
 }
 
 applyStoredShiftOverrides();
@@ -2547,10 +2591,47 @@ function populatePortalAgentSelect() {
     });
 }
 
+function getCurrentAdminProfile() {
+  return adminProfiles.find((profile) => profile.id === currentAdminProfileId) || adminProfiles[0];
+}
+
+function getCurrentAdminScope() {
+  if (currentView !== "admin") return "all";
+  return getCurrentAdminProfile().scope || "all";
+}
+
+function getAdminVisibleTeam(collection = team) {
+  const scope = getCurrentAdminScope();
+  if (scope === "all") return collection;
+  return collection.filter((person) => formatManagerName(person.manager) === scope);
+}
+
+function canCurrentAdminViewAuditLog() {
+  return currentView === "admin" && Boolean(getCurrentAdminProfile().canViewAuditLog);
+}
+
+function populateAdminIdentitySelect() {
+  if (!adminIdentitySelect) return;
+  adminIdentitySelect.innerHTML = adminProfiles
+    .map((profile) => `<option value="${profile.id}">${profile.label}</option>`)
+    .join("");
+  adminIdentitySelect.value = currentAdminProfileId;
+}
+
+function renderAdminIdentityBadge() {
+  if (!adminIdentityBadge) return;
+  const profile = getCurrentAdminProfile();
+  adminIdentityBadge.textContent =
+    profile.scope === "all"
+      ? `Signed in as ${profile.name}`
+      : `Signed in as ${profile.name} • team view`;
+}
+
 function populatePersonFilter() {
   if (!personFilter) return;
+  const currentValue = personFilter.value || "all";
   personFilter.innerHTML = '<option value="all">All specialists</option>';
-  [...initialTeam]
+  [...(currentView === "admin" ? getAdminVisibleTeam(initialTeam) : initialTeam)]
     .sort((a, b) => a.name.localeCompare(b.name))
     .forEach((person) => {
       const option = document.createElement("option");
@@ -2558,32 +2639,69 @@ function populatePersonFilter() {
       option.textContent = person.name;
       personFilter.appendChild(option);
     });
+  personFilter.value = [...personFilter.options].some((option) => option.value === currentValue)
+    ? currentValue
+    : "all";
+}
+
+function populateManagerFilter() {
+  if (!managerFilter) return;
+  const scope = getCurrentAdminScope();
+  const options =
+    scope === "all"
+      ? [
+          { value: "all", label: "All managers" },
+          ...managers
+            .filter((manager) => manager !== "all")
+            .map((manager) => ({ value: manager, label: manager })),
+        ]
+      : [{ value: scope, label: scope }];
+
+  managerFilter.innerHTML = options
+    .map((option) => `<option value="${option.value}">${option.label}</option>`)
+    .join("");
+
+  if (!options.some((option) => option.value === managerFilter.value)) {
+    managerFilter.value = scope === "all" ? "all" : scope;
+  }
+  managerFilter.disabled = scope !== "all";
 }
 
 function populateAssistantManagerFilter() {
   if (!assistantManagerFilter) return;
+  const scope = getCurrentAdminScope();
 
-  const options = [
-    { value: "all", label: "All managers" },
-    ...managers
-      .filter((manager) => manager !== "all")
-      .map((manager) => ({ value: manager, label: manager })),
-  ];
+  const options =
+    scope === "all"
+      ? [
+          { value: "all", label: "All managers" },
+          ...managers
+            .filter((manager) => manager !== "all")
+            .map((manager) => ({ value: manager, label: manager })),
+        ]
+      : [{ value: scope, label: scope }];
 
   assistantManagerFilter.innerHTML = options
     .map((option) => `<option value="${option.value}">${option.label}</option>`)
     .join("");
 
   const hasActiveValue = options.some((option) => option.value === assistantManagerMode);
-  assistantManagerMode = hasActiveValue ? assistantManagerMode : "all";
+  assistantManagerMode = hasActiveValue ? assistantManagerMode : scope === "all" ? "all" : scope;
   assistantManagerFilter.value = assistantManagerMode;
+  assistantManagerFilter.disabled = scope !== "all";
 }
 
 function handleAdminLogin() {
+  if (!adminIdentitySelect?.value) {
+    adminLoginFeedback.textContent = "Choose an admin view.";
+    return;
+  }
   if (adminPasswordInput.value === ADMIN_PASSWORD) {
     adminLoginFeedback.textContent = "";
+    currentAdminProfileId = adminIdentitySelect.value;
     adminPasswordInput.value = "";
     setView("admin");
+    void refreshAuditLog(true);
     render();
     return;
   }
@@ -2598,6 +2716,7 @@ function handleAgentOpen() {
 }
 
 populatePortalAgentSelect();
+populateAdminIdentitySelect();
 populatePersonFilter();
 populateAssistantManagerFilter();
 
@@ -2738,10 +2857,16 @@ function renderAssignmentManager() {
 
   assignmentManagerCard.querySelector("#add-assignment-button")?.addEventListener("click", () => {
     const input = assignmentManagerCard.querySelector("#new-assignment-input");
-    if (!addCustomAssignment(input?.value || "")) {
+    const assignmentName = String(input?.value || "").trim();
+    if (!addCustomAssignment(assignmentName)) {
       input.value = "";
       return;
     }
+    void appendAuditLogEntry({
+      actionType: "assignment-added",
+      summary: `Added assignment: ${assignmentName}`,
+      details: ["Assignment manager"],
+    });
     render();
   });
 
@@ -2754,37 +2879,199 @@ function renderAssignmentManager() {
       delete assignmentColors[assignment];
       refreshAssignmentCollections();
       refreshAssignmentControls();
+      void appendAuditLogEntry({
+        actionType: "assignment-removed",
+        summary: `Removed assignment: ${assignment}`,
+        details: ["Assignment manager"],
+      });
       render();
     });
   });
 }
-
-managers.forEach((manager) => {
-  if (manager === "all") return;
-  const option = document.createElement("option");
-  option.value = manager;
-  option.textContent = manager;
-  managerFilter.appendChild(option);
-});
-
-refreshAssignmentCollections();
-refreshAssignmentControls();
-setTheme(getSavedTheme());
-
-syncAssistantBuilder();
 
 function cloneData(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
 function getAssistantScopedTeam() {
-  return team.filter((person) => {
+  return getAdminVisibleTeam(team).filter((person) => {
     if (assistantTeamMode === "core" && person.teamGroup !== "core") return false;
     if (assistantTeamMode === "aco" && person.teamGroup !== "aco") return false;
     if (assistantManagerMode !== "all" && formatManagerName(person.manager) !== assistantManagerMode) return false;
     return true;
   });
 }
+
+function loadFallbackAuditLog() {
+  try {
+    const raw = window.localStorage.getItem(auditLogFallbackStorageKey);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFallbackAuditLog(entries) {
+  window.localStorage.setItem(auditLogFallbackStorageKey, JSON.stringify(entries));
+}
+
+function parseJsonSafely(text, fallback = {}) {
+  try {
+    return text ? JSON.parse(text) : fallback;
+  } catch {
+    throw new Error(text || "The server returned an invalid response.");
+  }
+}
+
+async function refreshAuditLog(force = false) {
+  if (!canCurrentAdminViewAuditLog()) {
+    auditLogEntries = [];
+    auditLogLoaded = false;
+    auditLogLoading = false;
+    auditLogError = "";
+    return;
+  }
+
+  if (auditLogLoading && !force) return;
+
+  if (!backendAvailable) {
+    auditLogEntries = loadFallbackAuditLog();
+    auditLogLoaded = true;
+    auditLogError = "";
+    renderAuditLog();
+    return;
+  }
+
+  auditLogLoading = true;
+  if (force) {
+    auditLogLoaded = false;
+  }
+  renderAuditLog();
+
+  try {
+    const response = await fetch("/api/audit-log");
+    const payload = parseJsonSafely(await response.text(), {});
+    if (!response.ok) {
+      throw new Error(payload.details || payload.error || "Unable to load the change log.");
+    }
+    auditLogEntries = Array.isArray(payload.entries) ? payload.entries : [];
+    saveFallbackAuditLog(auditLogEntries);
+    auditLogError = "";
+    auditLogLoaded = true;
+  } catch (error) {
+    auditLogEntries = loadFallbackAuditLog();
+    auditLogError = error.message;
+    auditLogLoaded = true;
+  } finally {
+    auditLogLoading = false;
+    renderAuditLog();
+  }
+}
+
+async function appendAuditLogEntry({ actionType, summary, details = [] }) {
+  if (currentView !== "admin") return;
+
+  const actor = getCurrentAdminProfile();
+  const entry = {
+    actorId: actor.id,
+    actorName: actor.name,
+    actorScope: actor.scope,
+    actionType,
+    summary,
+    details,
+    createdAt: new Date().toISOString(),
+  };
+
+  auditLogEntries = [entry, ...loadFallbackAuditLog()].slice(0, 250);
+  saveFallbackAuditLog(auditLogEntries);
+  auditLogLoaded = true;
+  if (canCurrentAdminViewAuditLog()) {
+    renderAuditLog();
+  }
+
+  if (!backendAvailable) return;
+
+  try {
+    const response = await fetch("/api/audit-log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entry }),
+    });
+    const payload = parseJsonSafely(await response.text(), {});
+    if (!response.ok) {
+      throw new Error(payload.details || payload.error || "Unable to save the change log.");
+    }
+    if (Array.isArray(payload.entries)) {
+      auditLogEntries = payload.entries;
+      saveFallbackAuditLog(auditLogEntries);
+      if (canCurrentAdminViewAuditLog()) {
+        renderAuditLog();
+      }
+    }
+  } catch (error) {
+    auditLogError = error.message;
+    if (canCurrentAdminViewAuditLog()) {
+      renderAuditLog();
+    }
+  }
+}
+
+function formatAuditTimestamp(value) {
+  if (!value) return "";
+  try {
+    return new Date(value).toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  } catch {
+    return value;
+  }
+}
+
+function renderAuditLog() {
+  if (!auditLogPanel || !auditLogList) return;
+
+  const shouldShow = canCurrentAdminViewAuditLog();
+  auditLogPanel.classList.toggle("hidden", !shouldShow);
+  if (!shouldShow) return;
+
+  if (auditLogLoading && !auditLogLoaded) {
+    auditLogList.innerHTML = `<div class="empty-state">Loading manager change log...</div>`;
+    return;
+  }
+
+  if (!auditLogEntries.length) {
+    auditLogList.innerHTML = `<div class="empty-state">${auditLogError || "No logged changes yet."}</div>`;
+    return;
+  }
+
+  auditLogList.innerHTML = auditLogEntries
+    .map((entry) => {
+      const details = Array.isArray(entry.details) && entry.details.length
+        ? `<div class="archive-meta">${entry.details.join(" • ")}</div>`
+        : "";
+      const scopeLabel = entry.actorScope && entry.actorScope !== "all" ? ` • ${entry.actorScope} team` : "";
+      return `
+        <div class="archive-row active">
+          <div>
+            <strong>${entry.summary || "Change recorded"}</strong>
+            <div class="archive-meta">${entry.actorName || "Unknown"}${scopeLabel} • ${formatAuditTimestamp(entry.createdAt)}</div>
+            ${details}
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+refreshAssignmentCollections();
+refreshAssignmentControls();
+setTheme(getSavedTheme());
+
+syncAssistantBuilder();
 
 function renderAssistantScopeButtons() {
   assistantScopeButtons.forEach((button) => {
@@ -4275,6 +4562,9 @@ function setView(nextView) {
   portalScreen.classList.toggle("hidden", nextView !== "portal");
   adminShell.classList.toggle("hidden", nextView !== "admin");
   agentShell.classList.toggle("hidden", nextView !== "agent");
+  if (nextView === "admin") {
+    void refreshAuditLog();
+  }
 }
 
 function findPersonFromText(text) {
@@ -5874,10 +6164,19 @@ async function submitChatRequest() {
 
 function applyPendingPlan() {
   if (!pendingPlan) return;
+  const appliedPlan = cloneData(pendingPlan);
   pendingPlan.actions.forEach(applyAction);
   addMessage("assistant", `Applied plan: ${pendingPlan.title}. The board, summary, and graph are now updated.`);
   lastReviewedPlan = cloneData(pendingPlan);
   pendingPlan = null;
+  void appendAuditLogEntry({
+    actionType: "plan-applied",
+    summary: `Applied plan: ${appliedPlan.title}`,
+    details: [
+      `${appliedPlan.actions.length} change${appliedPlan.actions.length === 1 ? "" : "s"}`,
+      ...(appliedPlan.details || []),
+    ],
+  });
   render();
 }
 
@@ -5889,7 +6188,7 @@ function discardPendingPlan() {
 }
 
 function getFilteredTeam() {
-  return team.filter((person) => {
+  return getAdminVisibleTeam(team).filter((person) => {
     const teamMatch = teamFilter.value === "all" || person.teamGroup === teamFilter.value;
     const managerMatch = managerFilter.value === "all" || formatManagerName(person.manager) === managerFilter.value;
     const assignmentMatch =
@@ -6491,11 +6790,22 @@ function renderBoard(filteredTeam) {
       if (!person || !group || !select) return;
 
       const nextAssignment = select.value;
+      const previousAssignments = [
+        ...new Set(group.blockIndexes.map((blockIndex) => person.assignments[blockIndex][0]).filter(Boolean)),
+      ];
       group.blockIndexes.forEach((blockIndex) => {
         person.assignments[blockIndex] = [
           nextAssignment === "Open" ? "" : nextAssignment,
           nextAssignment === "Tier 2 Phones",
         ];
+      });
+      void appendAuditLogEntry({
+        actionType: "assignment-updated",
+        summary: `Updated ${person.name}: ${group.label}`,
+        details: [
+          `From ${previousAssignments.length ? previousAssignments.join(" / ") : "Open"}`,
+          `To ${nextAssignment}`,
+        ],
       });
       editingBoardRow = null;
       render();
@@ -6559,7 +6869,7 @@ function renderShiftEditor() {
   if (!shiftEditorList) return;
 
   const normalizedQuery = normalizeText(shiftSearchTerm || "").trim();
-  const visiblePeople = [...team]
+  const visiblePeople = [...getAdminVisibleTeam(team)]
     .filter((person) => {
       if (!normalizedQuery) return true;
       const haystack = normalizeText(
@@ -6791,12 +7101,15 @@ function renderAgentBoard() {
 }
 
 function render() {
-  const filteredTeam = getFilteredTeam();
   refreshAssignmentCollections();
   refreshAssignmentControls();
+  setView(currentView);
+  populateManagerFilter();
+  populatePersonFilter();
   populateAssistantManagerFilter();
   renderAssistantScopeButtons();
-  setView(currentView);
+  renderAdminIdentityBadge();
+  const filteredTeam = getFilteredTeam();
   renderMessages();
   renderPendingPlan();
   renderStats(filteredTeam);
@@ -6810,6 +7123,7 @@ function render() {
   renderAssignmentManager();
   renderSchedulingRules();
   renderAutomations();
+  renderAuditLog();
   renderArchives();
   renderAgentBoard();
   queueArchiveSnapshotSync();

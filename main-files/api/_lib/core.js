@@ -3,6 +3,7 @@ const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
 const ARCHIVE_SETTINGS_OBJECT = "__config__-archive-settings.json";
 const SNAPSHOT_PREFIX = "__snapshot__-";
 const SCHEDULING_RULES_OBJECT = "__config__-scheduling-rules.json";
+const AUDIT_LOG_OBJECT = "__config__-audit-log.json";
 
 const PLAN_SCHEMA = {
   type: "object",
@@ -243,6 +244,25 @@ function defaultSchedulingRules() {
   };
 }
 
+function defaultAuditLog() {
+  return [];
+}
+
+function normalizeAuditEntry(entry) {
+  return {
+    id: String(entry?.id || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`),
+    actorId: String(entry?.actorId || "").trim(),
+    actorName: String(entry?.actorName || "Unknown").trim() || "Unknown",
+    actorScope: String(entry?.actorScope || "all").trim() || "all",
+    actionType: String(entry?.actionType || "update").trim() || "update",
+    summary: String(entry?.summary || "").trim(),
+    details: Array.isArray(entry?.details)
+      ? entry.details.map((detail) => String(detail || "").trim()).filter(Boolean)
+      : [],
+    createdAt: String(entry?.createdAt || new Date().toISOString()),
+  };
+}
+
 function normalizeSchedulingRules(payload) {
   const defaults = defaultSchedulingRules();
   if (Array.isArray(payload)) {
@@ -276,6 +296,36 @@ async function writeSchedulingRules(rules) {
     Buffer.from(JSON.stringify(normalized, null, 2))
   );
   return normalized;
+}
+
+async function readAuditLog() {
+  try {
+    const { body } = await downloadObject(AUDIT_LOG_OBJECT);
+    const parsed = JSON.parse(body.toString("utf8") || "[]");
+    return Array.isArray(parsed) ? parsed.map(normalizeAuditEntry) : defaultAuditLog();
+  } catch {
+    return defaultAuditLog();
+  }
+}
+
+async function writeAuditLog(entries) {
+  const normalized = Array.isArray(entries)
+    ? entries.map(normalizeAuditEntry).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    : defaultAuditLog();
+
+  await uploadObject(
+    AUDIT_LOG_OBJECT,
+    "application/json; charset=utf-8",
+    Buffer.from(JSON.stringify(normalized, null, 2))
+  );
+
+  return normalized;
+}
+
+async function appendAuditLog(entry) {
+  const existing = await readAuditLog();
+  const nextEntries = [normalizeAuditEntry(entry), ...existing].slice(0, 250);
+  return writeAuditLog(nextEntries);
 }
 
 async function saveArchiveSnapshot(dateKey, csv) {
@@ -460,6 +510,7 @@ function sendPlanError(res, error) {
 }
 
 module.exports = {
+  appendAuditLog,
   archiveSnapshotForDate,
   callOpenAIPlan,
   defaultArchiveSettings,
@@ -467,6 +518,7 @@ module.exports = {
   getArchiveStatus,
   getSupabaseConfig,
   processArchiveBacklog,
+  readAuditLog,
   readArchiveSettings,
   readJsonBody,
   readSchedulingRules,
@@ -476,5 +528,6 @@ module.exports = {
   sendPlanError,
   uploadObject,
   writeArchiveSettings,
+  writeAuditLog,
   writeSchedulingRules,
 };

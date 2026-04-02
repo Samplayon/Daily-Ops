@@ -27,6 +27,9 @@
           <div class="portal-panel">
             <h2>Admin</h2>
             <p>Password protected full board.</p>
+            <select id="admin-identity-select" class="portal-input">
+              <option value="">Select admin view</option>
+            </select>
             <input id="admin-password" type="password" placeholder="Enter admin password" class="portal-input" />
             <button id="admin-login" type="button">Open Admin View</button>
             <div id="admin-login-feedback" class="portal-feedback"></div>
@@ -51,6 +54,7 @@
           <div>
             <div class="eyebrow">Powered by PlayOn</div>
             <div class="admin-brand-title">Daily Operations</div>
+            <div id="admin-identity-badge" class="eyebrow">Signed in as Admin</div>
           </div>
         </div>
         <button id="back-to-home-admin" type="button" class="hero-back-button secondary-button">Back</button>
@@ -360,6 +364,15 @@
               <div id="scheduling-rules-card"></div>
             </section>
             <div id="automations-list" class="automations-list"></div>
+            <section id="audit-log-panel" class="panel panel-archives nested-panel hidden">
+              <div class="panel-header">
+                <div>
+                  <h2>Manager Change Log</h2>
+                  <p>Track who changed what across manager admin screens.</p>
+                </div>
+              </div>
+              <div id="audit-log-list" class="archives-list"></div>
+            </section>
             <section class="panel panel-archives nested-panel">
               <div class="panel-header">
                 <div>
