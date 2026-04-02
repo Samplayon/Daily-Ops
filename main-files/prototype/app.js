@@ -2304,6 +2304,7 @@ const clearAgentBackgroundButton = document.getElementById("clear-agent-backgrou
 const agentAlertsEnabled = document.getElementById("agent-alerts-enabled");
 const agentAlertTiming = document.getElementById("agent-alert-timing");
 const agentAlertScope = document.getElementById("agent-alert-scope");
+const agentAlertSoundEnabled = document.getElementById("agent-alert-sound-enabled");
 const agentEnableNotificationsButton = document.getElementById("agent-enable-notifications");
 const agentTestAlertButton = document.getElementById("agent-test-alert");
 const agentAlertStatus = document.getElementById("agent-alert-status");
@@ -3195,6 +3196,9 @@ function primeNotificationAudio() {
 }
 
 function playNotificationSound() {
+  const preferences = selectedAgentId ? loadAgentPreferences(selectedAgentId) : null;
+  if (preferences && preferences.alertSoundEnabled === false) return false;
+
   const audioContext = primeNotificationAudio();
   if (!audioContext || audioContext.state !== "running") return false;
 
@@ -3519,6 +3523,7 @@ function defaultAgentPreferences() {
     alertsEnabled: false,
     alertTiming: "start",
     alertScope: "all",
+    alertSoundEnabled: true,
   };
 }
 
@@ -3537,6 +3542,7 @@ function loadAgentPreferences(agentId) {
       alertsEnabled: Boolean(parsed.alertsEnabled),
       alertTiming: parsed.alertTiming || "start",
       alertScope: parsed.alertScope || "all",
+      alertSoundEnabled: parsed.alertSoundEnabled !== false,
     };
   } catch {
     return defaultAgentPreferences();
@@ -4094,6 +4100,7 @@ function applyAgentPreferences() {
   agentTextSelect.value = preferences.textColor;
   agentAlertsEnabled.checked = preferences.alertsEnabled;
   agentAlertTiming.value = preferences.alertTiming;
+  if (agentAlertSoundEnabled) agentAlertSoundEnabled.checked = preferences.alertSoundEnabled !== false;
   const nextScope = refreshAgentAlertScopeOptions(person, preferences.alertScope);
   if (nextScope !== preferences.alertScope) {
     saveCurrentAgentPreferences({ alertScope: nextScope });
@@ -6790,6 +6797,12 @@ agentAlertTiming.addEventListener("change", () => {
 agentAlertScope.addEventListener("change", () => {
   saveCurrentAgentPreferences({
     alertScope: agentAlertScope.value,
+  });
+  render();
+});
+agentAlertSoundEnabled?.addEventListener("change", () => {
+  saveCurrentAgentPreferences({
+    alertSoundEnabled: agentAlertSoundEnabled.checked,
   });
   render();
 });
