@@ -2184,6 +2184,7 @@ const baseAssignmentAliases = [
   { canonical: "Tier 2 Phones", phrases: ["tier 2 phones", "phones", "phone", "phone queue"] },
   { canonical: "School Support Queue", phrases: ["school support queue", "school support", "support queue"] },
   { canonical: "FST Queue", phrases: ["fst queue", "fst"] },
+  { canonical: "Both Queues", phrases: ["both queues", "both queue", "shared queues"] },
   { canonical: "Data Requests", phrases: ["data requests", "data request"] },
   { canonical: "Calibrations", phrases: ["calibrations", "calibration"] },
   { canonical: "Disputes", phrases: ["disputes", "dispute"] },
@@ -2196,6 +2197,7 @@ const assignmentColors = {
   "Tier 2 Phones": "#2f6c6a",
   "School Support Queue": "#d96b2b",
   "FST Queue": "#118a7e",
+  "Both Queues": "#0b8f8a",
   "Data Requests": "#5f9f1f",
   Disputes: "#8c4db4",
   Calibrations: "#b85c12",
@@ -4930,6 +4932,9 @@ function answerWhenPersonOnMod(text) {
 }
 
 function personHasSkill(person, assignment) {
+  if (assignment === "Both Queues") {
+    return (person.skills || []).includes("School Support Queue") && (person.skills || []).includes("FST Queue");
+  }
   if (!editableSkillAssignments.includes(assignment)) return true;
   return (person.skills || []).includes(assignment);
 }
@@ -5902,6 +5907,121 @@ function pickRulePeopleForAssignment(teamData, targetCount, assignment, blockInd
   return selected;
 }
 
+function ruleMentionsQueueRouting(ruleText) {
+  const normalized = normalizeText(ruleText || "");
+  return normalized.includes("both queues") && normalized.includes("fst") && normalized.includes("school support");
+}
+
+function getQueueAssignmentForPerson(person) {
+  const hasSchool = personHasSkill(person, "School Support Queue");
+  const hasFst = personHasSkill(person, "FST Queue");
+  if (hasSchool && hasFst) return "Both Queues";
+  if (hasFst) return "FST Queue";
+  if (hasSchool) return "School Support Queue";
+  return null;
+}
+
+function getProtectedPersonIdsForExactRule(rule, blockIndex, simulationTeam, coverageRules) {
+  if (rule.assignment !== "Tier 2 Phones") return new Set();
+  const protectedIds = new Set();
+  coverageRules
+    .filter((candidate) => candidate.minimumOnly)
+    .filter((candidate) => candidate.assignment !== rule.assignment)
+    .filter((candidate) => candidate.blockIndexes.includes(blockIndex))
+    .forEach((candidate) => {
+      const scopedTeam = getRuleScopedTeam(candidate.scope, simulationTeam);
+      const assigned = scopedTeam.filter((person) => person.assignments[blockIndex][0] === candidate.assignment);
+      assigned.slice(0, Math.min(candidate.count, assigned.length)).forEach((person) => protectedIds.add(personId(person)));
+    });
+  return protectedIds;
+}
+
+function chooseExactRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts) {
+  const scopedTeam = getRuleScopedTeam(rule.scope, simulationTeam);
+  const protectedIds = getProtectedPersonIdsForExactRule(rule, blockIndex, simulationTeam, coverageRules);
+  const initial = pickRulePeopleForAssignment(scopedTeam, rule.count, rule.assignment, blockIndex, {
+    balanceManagers: true,
+    weeklyPhoneCounts,
+    excludePersonIds: [...protectedIds],
+  });
+  if (initial.length >= rule.count || !protectedIds.size) return initial;
+
+  const chosenIds = new Set(initial.map((person) => personId(person)));
+  const extra = pickRulePeopleForAssignment(scopedTeam, rule.count - initial.length, rule.assignment, blockIndex, {
+    balanceManagers: true,
+    weeklyPhoneCounts,
+    excludePersonIds: [...chosenIds],
+  });
+  return [...initial, ...extra].filter((person, index, list) => list.findIndex((entry) => personId(entry) === personId(person)) === index);
+}
+
+function applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, weeklyPhoneCounts, actionMap, orderedKeys, detailLines, reasonPrefix = "reshuffle rule") {
+  const scopedTeam = getRuleScopedTeam(rule.scope, simulationTeam);
+  rule.blockIndexes.forEach((blockIndex) => {
+    const chosen = rule.minimumOnly
+      ? pickRulePeopleForAssignment(scopedTeam, rule.count, rule.assignment, blockIndex, {
+          balanceManagers: true,
+          weeklyPhoneCounts,
+        })
+      : chooseExactRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts);
+    const chosenIds = new Set(chosen.map((person) => personId(person)));
+    const currentAssigned = scopedTeam.filter((person) => person.assignments[blockIndex][0] === rule.assignment);
+
+    if (!rule.minimumOnly && currentAssigned.length > rule.count) {
+      currentAssigned
+        .filter((person) => !chosenIds.has(personId(person)))
+        .forEach((person) => {
+          const fallbackAssignment = findFallbackAssignment(person, blockIndex);
+          const action = buildAssignmentAction(
+            person,
+            blockIndex,
+            fallbackAssignment,
+            `${reasonPrefix}: reduce ${rule.assignment} to ${rule.count}`
+          );
+          upsertAssignmentAction(actionMap, orderedKeys, action);
+          setAssignmentOnTeam(simulationTeam, action);
+        });
+    }
+
+    chosen.forEach((person) => {
+      const action = buildAssignmentAction(
+        person,
+        blockIndex,
+        rule.assignment,
+        `${reasonPrefix}: ${rule.raw}`
+      );
+      upsertAssignmentAction(actionMap, orderedKeys, action);
+      setAssignmentOnTeam(simulationTeam, action);
+    });
+
+    const names = chosen.map((person) => person.name).join(", ") || "no available staff";
+    detailLines.push(`${getSchedulingScopeLabel(rule.scope)} • ${formatBlockLabel(blockIndex)} • ${rule.assignment}: ${names}`);
+  });
+}
+
+function applyQueueRoutingRules(ruleTexts, simulationTeam, actionMap, orderedKeys, detailLines) {
+  if (!ruleTexts.some(ruleMentionsQueueRouting)) return 0;
+  let routingChanges = 0;
+  simulationTeam.forEach((person) => {
+    person.assignments.forEach(([assignment], blockIndex) => {
+      if (!["School Support Queue", "FST Queue", "Both Queues"].includes(assignment)) return;
+      const routedAssignment = getQueueAssignmentForPerson(person);
+      if (!routedAssignment || routedAssignment === assignment) return;
+      const action = buildAssignmentAction(
+        person,
+        blockIndex,
+        routedAssignment,
+        "reshuffle rule: queue skill routing"
+      );
+      upsertAssignmentAction(actionMap, orderedKeys, action);
+      setAssignmentOnTeam(simulationTeam, action);
+      routingChanges += 1;
+      detailLines.push(`${person.name} -> ${routedAssignment} in ${formatBlockLabel(blockIndex)} based on queue skills.`);
+    });
+  });
+  return routingChanges;
+}
+
 async function buildRuleBasedReshufflePlan() {
   const ruleGroups = loadSchedulingRules();
   const filledRules = {
@@ -5921,8 +6041,8 @@ async function buildRuleBasedReshufflePlan() {
     ...filledRules.aco.map((rule) => parseCoverageRule(rule, "aco")),
   ].filter(Boolean);
 
-  if (!coverageRules.length) {
-    throw new Error("I could not find any coverage targets in the saved rules yet.");
+  if (!coverageRules.length && !allRuleText.some(ruleMentionsQueueRouting)) {
+    throw new Error("I could not find any usable scheduling targets in the saved rules yet.");
   }
 
   const shouldUseWeeklyPhoneHistory = allRuleText.some(ruleMentionsPhoneFairness);
@@ -5932,49 +6052,19 @@ async function buildRuleBasedReshufflePlan() {
   const orderedKeys = [];
   const detailLines = [];
 
-  coverageRules.forEach((rule) => {
-    const scopedTeam = getRuleScopedTeam(rule.scope, simulationTeam);
-    rule.blockIndexes.forEach((blockIndex) => {
-      const chosen = pickRulePeopleForAssignment(scopedTeam, rule.count, rule.assignment, blockIndex, {
-        balanceManagers: true,
-        weeklyPhoneCounts,
-      });
-      const chosenIds = new Set(chosen.map((person) => personId(person)));
-      const currentAssigned = scopedTeam.filter(
-        (person) => person.assignments[blockIndex][0] === rule.assignment
-      );
+  coverageRules
+    .filter((rule) => rule.minimumOnly)
+    .forEach((rule) => applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, weeklyPhoneCounts, actionMap, orderedKeys, detailLines));
 
-      if (!rule.minimumOnly && currentAssigned.length > rule.count) {
-        currentAssigned
-          .filter((person) => !chosenIds.has(personId(person)))
-          .forEach((person) => {
-            const fallbackAssignment = findFallbackAssignment(person, blockIndex);
-            const action = buildAssignmentAction(
-              person,
-              blockIndex,
-              fallbackAssignment,
-              `reshuffle rule: reduce ${rule.assignment} to ${rule.count}`
-            );
-            upsertAssignmentAction(actionMap, orderedKeys, action);
-            setAssignmentOnTeam(simulationTeam, action);
-          });
-      }
+  coverageRules
+    .filter((rule) => !rule.minimumOnly && rule.assignment !== "Tier 2 Phones")
+    .forEach((rule) => applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, weeklyPhoneCounts, actionMap, orderedKeys, detailLines));
 
-      chosen.forEach((person) => {
-        const action = buildAssignmentAction(
-          person,
-          blockIndex,
-          rule.assignment,
-          `reshuffle rule: ${rule.raw}`
-        );
-        upsertAssignmentAction(actionMap, orderedKeys, action);
-        setAssignmentOnTeam(simulationTeam, action);
-      });
+  const queueRoutingCount = applyQueueRoutingRules(allRuleText, simulationTeam, actionMap, orderedKeys, detailLines);
 
-      const names = chosen.map((person) => person.name).join(", ") || "no available staff";
-      detailLines.push(`${getSchedulingScopeLabel(rule.scope)} • ${formatBlockLabel(blockIndex)} • ${rule.assignment}: ${names}`);
-    });
-  });
+  coverageRules
+    .filter((rule) => !rule.minimumOnly && rule.assignment === "Tier 2 Phones")
+    .forEach((rule) => applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, weeklyPhoneCounts, actionMap, orderedKeys, detailLines, "final phone coverage"));
 
   const actions = orderedKeys.map((key) => actionMap.get(key)).filter(Boolean);
   if (!actions.length) {
@@ -5983,10 +6073,10 @@ async function buildRuleBasedReshufflePlan() {
 
   return {
     title: "Rule-based schedule reshuffle",
-    summary: `Applied ${coverageRules.length} scheduling rule${coverageRules.length === 1 ? "" : "s"} across All, Support, and ACO.`,
+    summary: `Applied ${coverageRules.length + (queueRoutingCount ? 1 : 0)} scheduling rule${coverageRules.length + (queueRoutingCount ? 1 : 0) === 1 ? "" : "s"} across All, Support, and ACO.`,
     actions,
     details: detailLines,
-    ruleCount: coverageRules.length,
+    ruleCount: coverageRules.length + (queueRoutingCount ? 1 : 0),
   };
 }
 
