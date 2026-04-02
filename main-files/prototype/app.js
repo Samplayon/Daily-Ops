@@ -2380,6 +2380,7 @@ let selectedAgentId = "";
 let assistantTeamMode = "all";
 let assistantManagerMode = "all";
 let editingBoardRow = null;
+let editingShiftPersonId = null;
 let blockLayout = {
   baseSize: 1,
   focus: null,
@@ -2391,6 +2392,140 @@ let messages = [
     text: "",
   },
 ];
+
+const shiftOverrideStorageKey = "daily-ops-shift-overrides-v1";
+const shiftTimeOptions = Array.from({ length: 17 }, (_, index) => 8 + index);
+
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function loadShiftOverrides() {
+  try {
+    const raw = window.localStorage.getItem(shiftOverrideStorageKey);
+    if (!raw) {
+      return { permanent: {}, daily: {} };
+    }
+    const parsed = JSON.parse(raw);
+    return {
+      permanent: parsed?.permanent || {},
+      daily: parsed?.daily || {},
+    };
+  } catch (error) {
+    return { permanent: {}, daily: {} };
+  }
+}
+
+function saveShiftOverrides(payload) {
+  window.localStorage.setItem(shiftOverrideStorageKey, JSON.stringify(payload));
+}
+
+function normalizeHourValue(hour) {
+  if (hour >= 24) return hour;
+  if (hour < 8) return hour + 24;
+  return hour;
+}
+
+function parseTimeToken(token) {
+  const normalized = normalizeText(token).replace(/\s+/g, "");
+  const match = normalized.match(/^(\d{1,2})(?::(\d{2}))?(a|p|am|pm)$/);
+  if (!match) return null;
+  let hour = Number(match[1]) % 12;
+  const minutes = Number(match[2] || "0");
+  const meridiem = match[3].startsWith("p") ? "pm" : "am";
+  if (meridiem === "pm") hour += 12;
+  return hour + minutes / 60;
+}
+
+function parseScheduleWindow(schedule) {
+  const text = String(schedule || "").trim();
+  if (!text || /off|ooo|pto|sick/i.test(text)) return null;
+  const parts = text.split("-").map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 2) return null;
+  const start = parseTimeToken(parts[0]);
+  const end = parseTimeToken(parts[1]);
+  if (start === null || end === null) return null;
+  const normalizedStart = normalizeHourValue(start);
+  let normalizedEnd = normalizeHourValue(end);
+  if (normalizedEnd <= normalizedStart) normalizedEnd += 24;
+  return {
+    start,
+    end,
+    normalizedStart,
+    normalizedEnd,
+  };
+}
+
+function getWorkedBlockIndexesForSchedule(schedule) {
+  const windowRange = parseScheduleWindow(schedule);
+  if (!windowRange) return [];
+
+  return timeBlocks
+    .map((block, blockIndex) => {
+      const blockStart = normalizeHourValue(block.start);
+      const blockEnd = normalizeHourValue(block.end);
+      return blockStart >= windowRange.normalizedStart && blockEnd <= windowRange.normalizedEnd
+        ? blockIndex
+        : null;
+    })
+    .filter((value) => value !== null);
+}
+
+function formatShiftHour(hour) {
+  if (hour === 24) return "12a";
+  return hourLabel(hour);
+}
+
+function formatScheduleValue(startHour, endHour) {
+  return `${formatShiftHour(startHour)} - ${formatShiftHour(endHour)}`;
+}
+
+function applyScheduleToPerson(person, schedule) {
+  const nextWorkedBlocks = new Set(getWorkedBlockIndexesForSchedule(schedule));
+  const previousAssignments = person.assignments.map(([assignment, phones]) => [assignment, phones]);
+
+  person.schedule = schedule;
+  person.assignments = previousAssignments.map(([assignment, phones], blockIndex) => {
+    if (nextWorkedBlocks.has(blockIndex)) {
+      return [assignment, phones];
+    }
+    return ["", false];
+  });
+}
+
+function applyStoredShiftOverrides() {
+  const overrides = loadShiftOverrides();
+  const todayOverrides = overrides.daily[getTodayKey()] || {};
+
+  team.forEach((person) => {
+    const permanentOverride = overrides.permanent[personId(person)];
+    const dailyOverride = todayOverrides[personId(person)];
+    const nextSchedule = dailyOverride?.schedule || permanentOverride?.schedule;
+    if (nextSchedule) {
+      applyScheduleToPerson(person, nextSchedule);
+    }
+  });
+}
+
+function saveShiftChange(person, schedule, mode) {
+  const overrides = loadShiftOverrides();
+  const personKey = personId(person);
+  const todayKey = getTodayKey();
+
+  if (mode === "permanent") {
+    overrides.permanent[personKey] = { schedule };
+    overrides.daily[todayKey] = overrides.daily[todayKey] || {};
+    overrides.daily[todayKey][personKey] = { schedule };
+  } else {
+    overrides.daily[todayKey] = overrides.daily[todayKey] || {};
+    overrides.daily[todayKey][personKey] = { schedule };
+  }
+
+  saveShiftOverrides(overrides);
+  applyScheduleToPerson(person, schedule);
+}
+
+applyStoredShiftOverrides();
 
 function populatePortalAgentSelect() {
   if (!agentSelect) return;
@@ -6040,7 +6175,25 @@ function renderBoard(filteredTeam) {
           const mixedAssignments = [...new Set(assignments)];
           const rowKey = `${personId(person)}:${group.startIndex}`;
           const isEditing = editingBoardRow === rowKey;
+          const isEditingShift = editingShiftPersonId === personId(person);
           const manualOptions = getManualAssignmentOptions(person);
+          const currentShiftWindow = parseScheduleWindow(person.schedule) || {
+            normalizedStart: 8,
+            normalizedEnd: 17,
+          };
+          const currentStartHour = Math.max(8, Math.floor(currentShiftWindow.normalizedStart));
+          const currentEndHour = Math.min(24, Math.ceil(currentShiftWindow.normalizedEnd));
+          const shiftOptionMarkup = shiftTimeOptions
+            .map(
+              (hour) => `<option value="${hour}" ${hour === currentStartHour ? "selected" : ""}>${formatShiftHour(hour)}</option>`
+            )
+            .join("");
+          const shiftEndMarkup = shiftTimeOptions
+            .filter((hour) => hour > currentStartHour)
+            .map(
+              (hour) => `<option value="${hour}" ${hour === currentEndHour ? "selected" : ""}>${formatShiftHour(hour)}</option>`
+            )
+            .join("");
           return `
             <article class="assignment-row">
               <div>
@@ -6071,7 +6224,46 @@ function renderBoard(filteredTeam) {
                       <button type="button" class="assignment-chip assignment-chip-button ${primaryAssignment === "OOO/Sick/PTO" ? "out" : ""}" data-row-key="${rowKey}">${mixedAssignments.join(" / ")}</button>
                     `
                 }
-                <div class="schedule-badge">${person.schedule}</div>
+                <div class="assignment-row-footer">
+                  <div class="schedule-badge">${person.schedule}</div>
+                  <button type="button" class="secondary-button shift-edit-button" data-person-id="${personId(person)}">Edit Shift</button>
+                </div>
+                ${
+                  isEditingShift
+                    ? `
+                      <div class="shift-edit-panel">
+                        <div class="shift-edit-grid">
+                          <label>
+                            <span>Start time</span>
+                            <select class="shift-edit-select shift-edit-start" data-person-id="${personId(person)}">
+                              ${shiftOptionMarkup}
+                            </select>
+                          </label>
+                          <label>
+                            <span>End time</span>
+                            <select class="shift-edit-select shift-edit-end" data-person-id="${personId(person)}">
+                              ${shiftEndMarkup}
+                            </select>
+                          </label>
+                        </div>
+                        <div class="shift-edit-scope">
+                          <label class="shift-scope-option">
+                            <input type="radio" name="shift-scope-${personId(person)}" value="today" checked />
+                            <span>Apply to today only</span>
+                          </label>
+                          <label class="shift-scope-option">
+                            <input type="radio" name="shift-scope-${personId(person)}" value="permanent" />
+                            <span>Make this permanent</span>
+                          </label>
+                        </div>
+                        <div class="manual-edit-actions">
+                          <button type="button" class="shift-save-button" data-person-id="${personId(person)}">Save Shift</button>
+                          <button type="button" class="secondary-button shift-cancel-button" data-person-id="${personId(person)}">Cancel</button>
+                        </div>
+                      </div>
+                    `
+                    : ""
+                }
               </div>
             </article>
           `;
@@ -6129,6 +6321,58 @@ function renderBoard(filteredTeam) {
         ];
       });
       editingBoardRow = null;
+      render();
+    });
+  });
+
+  board.querySelectorAll(".shift-edit-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      editingBoardRow = null;
+      editingShiftPersonId = button.dataset.personId || null;
+      render();
+    });
+  });
+
+  board.querySelectorAll(".shift-cancel-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      editingShiftPersonId = null;
+      render();
+    });
+  });
+
+  board.querySelectorAll(".shift-edit-start").forEach((select) => {
+    select.addEventListener("change", () => {
+      const personKey = select.dataset.personId || "";
+      const endSelect = board.querySelector(`.shift-edit-end[data-person-id="${personKey}"]`);
+      if (!endSelect) return;
+      const startValue = Number(select.value);
+      const previousEnd = Number(endSelect.value || startValue + 1);
+      endSelect.innerHTML = shiftTimeOptions
+        .filter((hour) => hour > startValue)
+        .map((hour) => `<option value="${hour}" ${hour === previousEnd ? "selected" : ""}>${formatShiftHour(hour)}</option>`)
+        .join("");
+      if (!endSelect.value) {
+        endSelect.value = String(Math.min(24, startValue + 1));
+      }
+    });
+  });
+
+  board.querySelectorAll(".shift-save-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const person = getPersonById(button.dataset.personId || "");
+      if (!person) return;
+
+      const startSelect = board.querySelector(`.shift-edit-start[data-person-id="${button.dataset.personId}"]`);
+      const endSelect = board.querySelector(`.shift-edit-end[data-person-id="${button.dataset.personId}"]`);
+      const modeInput = board.querySelector(`input[name="shift-scope-${button.dataset.personId}"]:checked`);
+      if (!startSelect || !endSelect || !modeInput) return;
+
+      const startHour = Number(startSelect.value);
+      const endHour = Number(endSelect.value);
+      if (!Number.isFinite(startHour) || !Number.isFinite(endHour) || endHour <= startHour) return;
+
+      saveShiftChange(person, formatScheduleValue(startHour, endHour), modeInput.value);
+      editingShiftPersonId = null;
       render();
     });
   });
@@ -6289,7 +6533,10 @@ sendToChatgptButton.addEventListener("click", openScheduleInChatgpt);
 applyPlanButton.addEventListener("click", applyPendingPlan);
 discardPlanButton.addEventListener("click", discardPendingPlan);
 resetDataButton.addEventListener("click", () => {
+  window.localStorage.removeItem(shiftOverrideStorageKey);
   team = cloneData(initialTeam);
+  editingBoardRow = null;
+  editingShiftPersonId = null;
   pendingPlan = null;
   lastReviewedPlan = null;
   pendingQuestion = null;

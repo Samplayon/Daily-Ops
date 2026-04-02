@@ -1833,6 +1833,13 @@ select {
   gap: 8px;
 }
 
+.assignment-row-footer {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .manual-edit-row {
   display: grid;
   gap: 10px;
@@ -1858,6 +1865,70 @@ select {
 .manual-save-button,
 .manual-cancel-button {
   width: fit-content;
+}
+
+.shift-edit-button,
+.shift-save-button,
+.shift-cancel-button {
+  width: fit-content;
+}
+
+.shift-edit-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.shift-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.shift-edit-grid label {
+  display: grid;
+  gap: 8px;
+}
+
+.shift-edit-grid span {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.shift-edit-select {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: #fffdf8;
+  color: var(--ink);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font: inherit;
+}
+
+.shift-edit-scope {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shift-scope-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.shift-scope-option input {
+  margin: 0;
 }
 
 .schedule-badge {
@@ -2077,6 +2148,11 @@ select {
   }
 
   .assignment-row {
+    grid-template-columns: 1fr;
+  }
+
+  .shift-edit-grid,
+  .shift-edit-scope {
     grid-template-columns: 1fr;
   }
 
