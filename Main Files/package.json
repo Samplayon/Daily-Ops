@@ -1,0 +1,14 @@
+{
+  "name": "daily-ops",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Daily Ops scheduling app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=18"
+  }
+}
