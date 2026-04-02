@@ -3599,39 +3599,100 @@ function updateAutomationSettings(automationId, updates) {
   saveAutomationPreferences(nextAutomations);
 }
 
+const schedulingRuleScopes = ["all", "support", "aco"];
+let activeSchedulingRuleScope = "all";
+
+function defaultSchedulingRules() {
+  return {
+    all: [""],
+    support: [""],
+    aco: [""],
+  };
+}
+
+function normalizeSchedulingRuleList(rules) {
+  const cleaned = Array.isArray(rules)
+    ? rules.map((rule) => String(rule || "").trimEnd())
+    : [];
+  return cleaned.length ? cleaned : [""];
+}
+
 function loadSchedulingRules() {
   try {
     const raw = window.localStorage.getItem(getSchedulingRulesKey());
-    const parsed = raw ? JSON.parse(raw) : [];
-    const cleaned = Array.isArray(parsed)
-      ? parsed.map((rule) => String(rule || "").trimEnd())
-      : [];
-    return cleaned.length ? cleaned : [""];
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed)) {
+      return {
+        all: normalizeSchedulingRuleList(parsed),
+        support: [""],
+        aco: [""],
+      };
+    }
+    const defaults = defaultSchedulingRules();
+    return {
+      all: normalizeSchedulingRuleList(parsed?.all ?? defaults.all),
+      support: normalizeSchedulingRuleList(parsed?.support ?? defaults.support),
+      aco: normalizeSchedulingRuleList(parsed?.aco ?? defaults.aco),
+    };
   } catch {
-    return [""];
+    return defaultSchedulingRules();
   }
 }
 
-function saveSchedulingRules(rules) {
-  const cleaned = (rules || []).map((rule) => String(rule || "").trimEnd());
-  window.localStorage.setItem(getSchedulingRulesKey(), JSON.stringify(cleaned.length ? cleaned : [""]));
+function saveSchedulingRules(ruleGroups) {
+  const defaults = defaultSchedulingRules();
+  const payload = {
+    all: normalizeSchedulingRuleList(ruleGroups?.all ?? defaults.all),
+    support: normalizeSchedulingRuleList(ruleGroups?.support ?? defaults.support),
+    aco: normalizeSchedulingRuleList(ruleGroups?.aco ?? defaults.aco),
+  };
+  window.localStorage.setItem(getSchedulingRulesKey(), JSON.stringify(payload));
+}
+
+function getSchedulingScopeLabel(scope) {
+  return scope === "support" ? "Support" : scope === "aco" ? "ACO" : "All";
 }
 
 function renderSchedulingRules() {
   if (!schedulingRulesCard) return;
 
-  const rules = loadSchedulingRules();
+  const ruleGroups = loadSchedulingRules();
+  const rules = normalizeSchedulingRuleList(ruleGroups[activeSchedulingRuleScope]);
   schedulingRulesCard.innerHTML = `
     <div class="rules-card">
+      <div class="rules-scope-switcher">
+        ${schedulingRuleScopes
+          .map(
+            (scope) => `
+              <button
+                type="button"
+                class="rules-scope-button ${scope === activeSchedulingRuleScope ? "active" : ""}"
+                data-rule-scope="${scope}"
+              >
+                ${getSchedulingScopeLabel(scope)}
+              </button>
+            `
+          )
+          .join("")}
+      </div>
+      <div class="rules-scope-copy">
+        ${getSchedulingScopeLabel(activeSchedulingRuleScope)} rules only apply to ${
+          activeSchedulingRuleScope === "all"
+            ? "everyone"
+            : activeSchedulingRuleScope === "support"
+              ? "Support team members"
+              : "ACO team members"
+        }.
+      </div>
       <div class="rules-list">
         ${rules
           .map(
             (rule, index) => `
               <div class="rule-row">
-                <label class="rule-label" for="rule-input-${index}">Rule ${index + 1}</label>
+                <label class="rule-label" for="rule-input-${activeSchedulingRuleScope}-${index}">${getSchedulingScopeLabel(activeSchedulingRuleScope)} Rule ${index + 1}</label>
                 <div class="rule-input-row">
                   <input
-                    id="rule-input-${index}"
+                    id="rule-input-${activeSchedulingRuleScope}-${index}"
                     type="text"
                     class="portal-input rule-input"
                     value="${rule.replace(/"/g, "&quot;")}"
@@ -3655,26 +3716,40 @@ function renderSchedulingRules() {
     </div>
   `;
 
+  schedulingRulesCard.querySelectorAll("[data-rule-scope]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeSchedulingRuleScope = button.dataset.ruleScope || "all";
+      renderSchedulingRules();
+    });
+  });
+
   schedulingRulesCard.querySelectorAll("[data-rule-index]").forEach((input) => {
     input.addEventListener("input", (event) => {
-      const nextRules = loadSchedulingRules();
+      const nextRuleGroups = loadSchedulingRules();
+      const nextRules = normalizeSchedulingRuleList(nextRuleGroups[activeSchedulingRuleScope]);
       nextRules[Number(event.target.dataset.ruleIndex)] = event.target.value;
-      saveSchedulingRules(nextRules);
+      nextRuleGroups[activeSchedulingRuleScope] = nextRules;
+      saveSchedulingRules(nextRuleGroups);
     });
   });
 
   schedulingRulesCard.querySelectorAll("[data-rule-remove]").forEach((button) => {
     button.addEventListener("click", () => {
-      const nextRules = loadSchedulingRules().filter((_, index) => index !== Number(button.dataset.ruleRemove));
-      saveSchedulingRules(nextRules);
+      const nextRuleGroups = loadSchedulingRules();
+      nextRuleGroups[activeSchedulingRuleScope] = normalizeSchedulingRuleList(nextRuleGroups[activeSchedulingRuleScope]).filter(
+        (_, index) => index !== Number(button.dataset.ruleRemove)
+      );
+      saveSchedulingRules(nextRuleGroups);
       renderSchedulingRules();
     });
   });
 
   schedulingRulesCard.querySelector("#add-scheduling-rule")?.addEventListener("click", () => {
-    const nextRules = loadSchedulingRules();
+    const nextRuleGroups = loadSchedulingRules();
+    const nextRules = normalizeSchedulingRuleList(nextRuleGroups[activeSchedulingRuleScope]);
     nextRules.push("");
-    saveSchedulingRules(nextRules);
+    nextRuleGroups[activeSchedulingRuleScope] = nextRules;
+    saveSchedulingRules(nextRuleGroups);
     renderSchedulingRules();
   });
 }

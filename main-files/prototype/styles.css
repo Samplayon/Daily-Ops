@@ -1187,6 +1187,33 @@ select {
   gap: 16px;
 }
 
+.rules-scope-switcher {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rules-scope-button {
+  border: 1px solid rgba(5, 8, 13, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rules-scope-button.active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: rgba(0, 201, 210, 0.35);
+}
+
+.rules-scope-copy {
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .rules-list {
   display: grid;
   gap: 14px;
