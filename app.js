@@ -2332,9 +2332,6 @@ const archivePreviewMeta = document.getElementById("archive-preview-meta");
 const archivePreviewTable = document.getElementById("archive-preview-table");
 const archivePreviewOpen = document.getElementById("archive-preview-open");
 const archivePreviewSummaryAction = document.querySelector(".archive-preview-summary-action");
-const archiveNameInput = document.getElementById("archive-name-input");
-const archiveNameSearchButton = document.getElementById("archive-name-search");
-const archiveNameResult = document.getElementById("archive-name-result");
 const assistantScopeButtons = document.querySelectorAll(".assistant-scope-button");
 const assistantManagerFilter = document.getElementById("assistant-manager-filter");
 const themeToggleButton = document.getElementById("theme-toggle");
@@ -3611,47 +3608,6 @@ function findArchiveRowsForName(nameQuery) {
   });
 }
 
-function renderArchiveNameLookupResult() {
-  if (!archiveNameResult) return;
-
-  const query = archiveNameInput?.value?.trim() || "";
-  if (!query) {
-    archiveNameResult.innerHTML = `Select an archive, then type a name to look up their day.`;
-    return;
-  }
-
-  const matches = findArchiveRowsForName(query);
-  if (!matches.length) {
-    archiveNameResult.innerHTML = `No matching schedule found in this archive for <strong>${query}</strong>.`;
-    return;
-  }
-
-  const grouped = new Map();
-  matches.forEach((row) => {
-    const key = row.timeBlock || "Unknown";
-    if (!grouped.has(key)) grouped.set(key, []);
-    grouped.get(key).push(row.assignment || "Open");
-  });
-
-  const markup = Array.from(grouped.entries())
-    .map(([timeBlock, assignments]) => {
-      const uniqueAssignments = [...new Set(assignments)];
-      return `
-        <div class="archive-name-block">
-          <div class="archive-name-time">${timeBlock}</div>
-          <div class="archive-name-assignment">${uniqueAssignments.join(", ")}</div>
-        </div>
-      `;
-    })
-    .join("");
-
-  const displayName = matches[0].name || query;
-  archiveNameResult.innerHTML = `
-    <div class="archive-name-summary">${displayName} in this archive:</div>
-    <div class="archive-name-blocks">${markup}</div>
-  `;
-}
-
 function renderArchivePreviewTable(archive, csvText) {
   if (!archivePreview || !archivePreviewTable || !archivePreviewTitle || !archivePreviewMeta || !archivePreviewOpen) return;
 
@@ -3773,9 +3729,6 @@ async function loadArchivePreview(archive) {
     archivePreviewRows = [];
     if (archivePreviewTable) {
       archivePreviewTable.innerHTML = `<div class="archive-preview-empty">Could not load that archive preview.</div>`;
-    }
-    if (archiveNameResult) {
-      archiveNameResult.innerHTML = `Could not load this archive for name lookup.`;
     }
   }
 }
@@ -6432,12 +6385,6 @@ backToHomeAgentButton.addEventListener("click", () => {
 commandInput.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
     submitChatRequest();
-  }
-});
-archiveNameSearchButton?.addEventListener("click", renderArchiveNameLookupResult);
-archiveNameInput?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    renderArchiveNameLookupResult();
   }
 });
 assistantAddAssignmentButton?.addEventListener("click", () => {
