@@ -2498,6 +2498,7 @@ function renderReshuffleReportCard() {
   }
 
   const lines = (latestReshuffleReport.details || []).slice(0, 12);
+  const perRuleResults = latestReshuffleReport.ruleResults || [];
   reshuffleReportCard.innerHTML = `
     <div class="panel-header">
       <div>
@@ -2516,6 +2517,26 @@ function renderReshuffleReportCard() {
     <div class="reshuffle-report-section">
       <h4>Rule snapshot</h4>
       <div class="reshuffle-report-rules">${(latestReshuffleReport.rules || []).map((rule) => `<div class="reshuffle-report-rule">${rule}</div>`).join("")}</div>
+    </div>
+    <div class="reshuffle-report-section">
+      <h4>Per-rule results</h4>
+      <div class="reshuffle-report-rule-results">${perRuleResults.length
+        ? perRuleResults.map((result) => `
+            <article class="reshuffle-report-rule-result">
+              <div class="reshuffle-report-rule-result-top">
+                <span class="reshuffle-report-rule-result-scope">${(result.scope || 'all').toUpperCase()}</span>
+                <strong>${result.label || result.assignment || 'Rule review'}</strong>
+                <span class="reshuffle-report-rule-result-status">${result.status}</span>
+              </div>
+              <div class="reshuffle-report-rule-result-rule">${result.rule}</div>
+              <div class="reshuffle-report-rule-result-meta">
+                <span>${result.changeCount || 0} change${result.changeCount === 1 ? '' : 's'}</span>
+                <span>${result.reviewedBlocks || 0} block${result.reviewedBlocks === 1 ? '' : 's'} reviewed</span>
+              </div>
+              ${result.notes && result.notes.length ? `<ul class="reshuffle-report-rule-notes">${result.notes.map((note) => `<li>${note}</li>`).join("")}</ul>` : ''}
+            </article>
+          `).join("")
+        : `<div class="reshuffle-report-rule">No per-rule breakdown saved yet.</div>`}</div>
     </div>
     <div class="reshuffle-report-section">
       <h4>Why these changes happened</h4>
@@ -4650,6 +4671,7 @@ async function runAutomationTest(automationId) {
         actionableRuleCount: plan.actionableRuleCount || 0,
         actionCount: plan.actions.length,
         rules: plan.rulesUsed || [],
+        ruleResults: plan.ruleResults || [],
         details: plan.details || [],
       });
       addMessage("assistant", `I reshuffled today’s schedule using the saved All, Support, and ACO rules. ${plan.actions.length} change${plan.actions.length === 1 ? "" : "s"} were applied.`);
@@ -5843,22 +5865,59 @@ function ruleMentionsPhoneFairness(ruleText) {
   ]);
 }
 
-function parseCoverageRule(ruleText, scope) {
+function parseCoverageRules(ruleText, scope) {
   const cleaned = String(ruleText || "").trim();
-  if (!cleaned) return null;
+  if (!cleaned) return [];
 
   const assignment = findAssignmentFromText(cleaned);
   const count = parseCount(cleaned);
-  if (!assignment || !count) return null;
+  if (!assignment || !count) return [];
 
-  return {
-    scope,
-    assignment,
-    count,
-    minimumOnly: isMinimumCoverageRule(cleaned),
-    blockIndexes: parseRuleBlockIndexes(cleaned),
-    raw: cleaned,
-  };
+  const minimumOnly = isMinimumCoverageRule(cleaned);
+  const exactPhoneOutsideRule =
+    assignment === "Tier 2 Phones" &&
+    !minimumOnly &&
+    /outside(?:\s+of)?/i.test(cleaned);
+
+  if (exactPhoneOutsideRule) {
+    const allCounts = [...cleaned.matchAll(/(\d+)\s+people/gi)]
+      .map((match) => Number.parseInt(match[1], 10))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const insideBlocks = parseTimeRange(cleaned) || getAllBlockIndexes();
+    const outsideBlocks = getAllBlockIndexes().filter((index) => !insideBlocks.includes(index));
+
+    if (insideBlocks.length && outsideBlocks.length && allCounts.length >= 2) {
+      return [
+        {
+          scope,
+          assignment,
+          count: allCounts[0],
+          minimumOnly: false,
+          blockIndexes: insideBlocks,
+          raw: `${cleaned} [inside range]`,
+        },
+        {
+          scope,
+          assignment,
+          count: allCounts[1],
+          minimumOnly: false,
+          blockIndexes: outsideBlocks,
+          raw: `${cleaned} [outside range]`,
+        },
+      ];
+    }
+  }
+
+  return [
+    {
+      scope,
+      assignment,
+      count,
+      minimumOnly,
+      blockIndexes: parseRuleBlockIndexes(cleaned),
+      raw: cleaned,
+    },
+  ];
 }
 
 function getCurrentWeekStartDate() {
@@ -6080,7 +6139,11 @@ function chooseExactRulePeople(rule, blockIndex, simulationTeam, coverageRules, 
 
 function applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, weeklyPhoneCounts, actionMap, orderedKeys, detailLines, reasonPrefix = "reshuffle rule") {
   const scopedTeam = getRuleScopedTeam(rule.scope, simulationTeam);
+  let touchedChanges = 0;
+  let reviewedBlocks = 0;
+
   rule.blockIndexes.forEach((blockIndex) => {
+    reviewedBlocks += 1;
     const chosen = rule.minimumOnly
       ? pickRulePeopleForAssignment(scopedTeam, rule.count, rule.assignment, blockIndex, {
           balanceManagers: true,
@@ -6101,6 +6164,9 @@ function applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, week
             fallbackAssignment,
             `${reasonPrefix}: reduce ${rule.assignment} to ${rule.count}`
           );
+          if (action.assignment !== action.previousAssignment) {
+            touchedChanges += 1;
+          }
           upsertAssignmentAction(actionMap, orderedKeys, action);
           setAssignmentOnTeam(simulationTeam, action);
         });
@@ -6113,6 +6179,9 @@ function applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, week
         rule.assignment,
         `${reasonPrefix}: ${rule.raw}`
       );
+      if (action.assignment !== action.previousAssignment) {
+        touchedChanges += 1;
+      }
       upsertAssignmentAction(actionMap, orderedKeys, action);
       setAssignmentOnTeam(simulationTeam, action);
     });
@@ -6120,10 +6189,26 @@ function applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, week
     const names = chosen.map((person) => person.name).join(", ") || "no available staff";
     detailLines.push(`${getSchedulingScopeLabel(rule.scope)} • ${formatBlockLabel(blockIndex)} • ${rule.assignment}: ${names}`);
   });
+
+  return {
+    scope: rule.scope,
+    rule: rule.raw,
+    assignment: rule.assignment,
+    reviewedBlocks,
+    changeCount: touchedChanges,
+    status: touchedChanges ? "Applied" : "Reviewed - no changes needed",
+  };
 }
 
 function applyQueueRoutingRules(ruleTexts, simulationTeam, actionMap, orderedKeys, detailLines) {
-  if (!ruleTexts.some(ruleMentionsQueueRouting)) return 0;
+  const matchingRules = ruleTexts.filter(ruleMentionsQueueRouting);
+  if (!matchingRules.length) {
+    return {
+      changeCount: 0,
+      results: [],
+    };
+  }
+
   let routingChanges = 0;
   simulationTeam.forEach((person) => {
     person.assignments.forEach(([assignment], blockIndex) => {
@@ -6142,7 +6227,50 @@ function applyQueueRoutingRules(ruleTexts, simulationTeam, actionMap, orderedKey
       detailLines.push(`${person.name} -> ${routedAssignment} in ${formatBlockLabel(blockIndex)} based on queue skills.`);
     });
   });
-  return routingChanges;
+
+  return {
+    changeCount: routingChanges,
+    results: matchingRules.map((rule) => ({
+      scope: rule.includes('[Support]') ? 'support' : rule.includes('[ACO]') ? 'aco' : 'all',
+      rule,
+      assignment: 'Queue routing',
+      reviewedBlocks: timeBlocks.length,
+      changeCount: routingChanges,
+      status: routingChanges ? 'Applied' : 'Reviewed - no changes needed',
+    })),
+  };
+}
+
+function summarizeSavedRule(savedRule, coverageRulesForRule = []) {
+  const lowered = normalizeText(savedRule.rule);
+  const coverageLabels = Array.from(new Set(coverageRulesForRule.map((rule) => rule.assignment).filter(Boolean)));
+
+  if (coverageLabels.length) {
+    return coverageLabels.join(' + ');
+  }
+  if (ruleMentionsQueueRouting(savedRule.rule)) {
+    return 'Queue routing';
+  }
+  if (ruleMentionsPhoneFairness(savedRule.rule)) {
+    return 'Phone fairness';
+  }
+  if (lowered.includes('only assign skills') || lowered.includes('skills that people have')) {
+    return 'Skill guardrail';
+  }
+  return 'Rule review';
+}
+
+function defaultRuleStatus(savedRule, coverageRulesForRule = []) {
+  if (coverageRulesForRule.length || ruleMentionsQueueRouting(savedRule.rule)) {
+    return 'Reviewed - waiting for result';
+  }
+  if (ruleMentionsPhoneFairness(savedRule.rule)) {
+    return 'Reviewed - guided fairness weighting';
+  }
+  if (normalizeText(savedRule.rule).includes('only assign skills') || normalizeText(savedRule.rule).includes('skills that people have')) {
+    return 'Reviewed - used as skill guardrail';
+  }
+  return 'Reviewed';
 }
 
 async function buildRuleBasedReshufflePlan() {
@@ -6153,15 +6281,20 @@ async function buildRuleBasedReshufflePlan() {
     aco: normalizeSchedulingRuleList(ruleGroups.aco).filter((rule) => String(rule || "").trim()),
   };
 
-  const allRuleText = [...filledRules.all, ...filledRules.support, ...filledRules.aco];
+  const savedRules = [
+    ...filledRules.all.map((rule) => ({ scope: 'all', rule })),
+    ...filledRules.support.map((rule) => ({ scope: 'support', rule })),
+    ...filledRules.aco.map((rule) => ({ scope: 'aco', rule })),
+  ];
+  const allRuleText = savedRules.map((entry) => entry.rule);
   if (!allRuleText.length) {
     throw new Error("Add at least one scheduling rule before running the reshuffle.");
   }
 
   const coverageRules = [
-    ...filledRules.all.map((rule) => parseCoverageRule(rule, "all")),
-    ...filledRules.support.map((rule) => parseCoverageRule(rule, "support")),
-    ...filledRules.aco.map((rule) => parseCoverageRule(rule, "aco")),
+    ...filledRules.all.flatMap((rule) => parseCoverageRules(rule, "all")),
+    ...filledRules.support.flatMap((rule) => parseCoverageRules(rule, "support")),
+    ...filledRules.aco.flatMap((rule) => parseCoverageRules(rule, "aco")),
   ].filter(Boolean);
 
   if (!coverageRules.length && !allRuleText.some(ruleMentionsQueueRouting)) {
@@ -6174,28 +6307,100 @@ async function buildRuleBasedReshufflePlan() {
   const actionMap = new Map();
   const orderedKeys = [];
   const detailLines = [];
+  const ruleResultMap = new Map();
+  const makeRuleKey = (scope, rule) => `${scope}::${rule}`;
+
+  savedRules.forEach((savedRule) => {
+    const matchingCoverageRules = coverageRules.filter((rule) => rule.scope === savedRule.scope && rule.raw === savedRule.rule);
+    ruleResultMap.set(makeRuleKey(savedRule.scope, savedRule.rule), {
+      scope: savedRule.scope,
+      rule: savedRule.rule,
+      label: summarizeSavedRule(savedRule, matchingCoverageRules),
+      assignment: matchingCoverageRules[0]?.assignment || null,
+      reviewedBlocks: matchingCoverageRules.length
+        ? Array.from(new Set(matchingCoverageRules.flatMap((rule) => rule.blockIndexes || []))).length
+        : ruleMentionsQueueRouting(savedRule.rule)
+          ? timeBlocks.length
+          : 0,
+      changeCount: 0,
+      status: defaultRuleStatus(savedRule, matchingCoverageRules),
+      notes: [],
+    });
+  });
+
+  function updateSavedRuleResult(result, noteLines = []) {
+    const existing = ruleResultMap.get(makeRuleKey(result.scope || 'all', result.rule));
+    if (!existing) return;
+    existing.assignment = existing.assignment || result.assignment || null;
+    existing.label = existing.label || result.label || result.assignment || 'Rule review';
+    existing.reviewedBlocks = Math.max(existing.reviewedBlocks || 0, result.reviewedBlocks || 0);
+    existing.changeCount += result.changeCount || 0;
+    existing.notes.push(...noteLines.filter(Boolean));
+    existing.notes = Array.from(new Set(existing.notes));
+    if (existing.changeCount > 0) {
+      existing.status = 'Applied';
+    }
+  }
+
+  function applyRuleAndTrack(rule, reasonPrefix) {
+    const beforeDetailCount = detailLines.length;
+    const result = applyCoverageRuleToSimulation(
+      rule,
+      simulationTeam,
+      coverageRules,
+      weeklyPhoneCounts,
+      actionMap,
+      orderedKeys,
+      detailLines,
+      reasonPrefix
+    );
+    updateSavedRuleResult(result, detailLines.slice(beforeDetailCount));
+  }
 
   coverageRules
     .filter((rule) => rule.minimumOnly)
-    .forEach((rule) => applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, weeklyPhoneCounts, actionMap, orderedKeys, detailLines));
+    .forEach((rule) => {
+      applyRuleAndTrack(rule);
+    });
 
   coverageRules
     .filter((rule) => !rule.minimumOnly && rule.assignment !== "Tier 2 Phones")
-    .forEach((rule) => applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, weeklyPhoneCounts, actionMap, orderedKeys, detailLines));
+    .forEach((rule) => {
+      applyRuleAndTrack(rule);
+    });
 
-  const queueRoutingCount = applyQueueRoutingRules(allRuleText, simulationTeam, actionMap, orderedKeys, detailLines);
+  const queueRoutingResult = applyQueueRoutingRules(allRuleText, simulationTeam, actionMap, orderedKeys, detailLines);
+  queueRoutingResult.results.forEach((result) => updateSavedRuleResult(result));
 
   coverageRules
     .filter((rule) => !rule.minimumOnly && rule.assignment === "Tier 2 Phones")
-    .forEach((rule) => applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, weeklyPhoneCounts, actionMap, orderedKeys, detailLines, "final phone coverage"));
+    .forEach((rule) => {
+      applyRuleAndTrack(rule, "final phone coverage");
+    });
 
   const actions = orderedKeys.map((key) => actionMap.get(key)).filter(Boolean);
   if (!actions.length) {
     throw new Error("The saved rules did not require any schedule changes right now.");
   }
 
+  const ruleResults = savedRules.map((savedRule) => {
+    const result = ruleResultMap.get(makeRuleKey(savedRule.scope, savedRule.rule));
+    if (!result.notes.length) {
+      if (result.status === 'Reviewed - waiting for result') {
+        result.status = 'Reviewed - no changes needed';
+      }
+      if (result.status.includes('fairness')) {
+        result.notes = ['Used earlier week archive history to weight phone choices more fairly.'];
+      } else if (result.status.includes('skill guardrail')) {
+        result.notes = ['Used as a guardrail so people were only assigned to work they are qualified to do.'];
+      }
+    }
+    result.notes = result.notes.slice(0, 4);
+    return result;
+  });
+
   const savedRuleCount = allRuleText.length;
-  const actionableRuleCount = coverageRules.length + (queueRoutingCount ? 1 : 0);
+  const actionableRuleCount = coverageRules.length + (queueRoutingResult.results.length ? queueRoutingResult.results.length : 0);
 
   return {
     title: "Rule-based schedule reshuffle",
@@ -6205,6 +6410,7 @@ async function buildRuleBasedReshufflePlan() {
     ruleCount: savedRuleCount,
     actionableRuleCount,
     rulesUsed: allRuleText,
+    ruleResults,
   };
 }
 

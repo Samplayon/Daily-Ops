@@ -2330,6 +2330,70 @@ select {
   line-height: 1.45;
 }
 
+.reshuffle-report-rule-results {
+  display: grid;
+  gap: 12px;
+}
+
+.reshuffle-report-rule-result {
+  border: 2px solid rgba(5, 8, 13, 0.12);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.82);
+  display: grid;
+  gap: 8px;
+}
+
+.reshuffle-report-rule-result-top {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.reshuffle-report-rule-result-scope,
+.reshuffle-report-rule-result-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.reshuffle-report-rule-result-scope {
+  background: rgba(0, 201, 210, 0.12);
+  color: var(--accent-strong);
+}
+
+.reshuffle-report-rule-result-status {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--ink);
+}
+
+.reshuffle-report-rule-result-rule {
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.reshuffle-report-rule-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.reshuffle-report-rule-notes {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+}
+
 .reshuffle-report-list {
   margin: 0;
   padding-left: 20px;
