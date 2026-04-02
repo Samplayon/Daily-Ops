@@ -2403,7 +2403,7 @@ let notificationAudioContext = null;
 let editableSkillAssignments = [...baseEditableSkillAssignments];
 let assignmentAliases = [...baseAssignmentAliases];
 let assignmentOptions = [];
-let customAssignmentsState = loadCustomAssignments();
+let customAssignmentsState = null;
 
 const automationDefinitions = [
   {
