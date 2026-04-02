@@ -2403,6 +2403,12 @@ let assignmentOptions = [];
 
 const automationDefinitions = [
   {
+    id: "rule-based-reshuffle",
+    name: "Rule-Based Reshuffle",
+    description: "Rebuild today's schedule using the saved All, Support, and ACO scheduling rules.",
+    kind: "schedule-reshuffle",
+  },
+  {
     id: "nightly-pdf-archive",
     name: "Nightly Schedule Archive",
     description: "At 12:00 a.m., save a copy of the day's schedule into Supabase Storage.",
@@ -4509,6 +4515,40 @@ async function runAutomationTest(automationId) {
   const automation = loadAutomationPreferences().find((entry) => entry.id === automationId);
   if (!automation) return;
 
+  if (automation.id === "rule-based-reshuffle") {
+    try {
+      const plan = await buildRuleBasedReshufflePlan();
+      plan.actions.forEach(applyAction);
+      lastReviewedPlan = cloneData(plan);
+      automationTestState = {
+        ...automationTestState,
+        [automationId]: {
+          message: `Reshuffled the schedule using ${plan.ruleCount} saved rule${plan.ruleCount === 1 ? "" : "s"}.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        },
+      };
+      addMessage("assistant", `I reshuffled today’s schedule using the saved All, Support, and ACO rules. ${plan.actions.length} change${plan.actions.length === 1 ? "" : "s"} were applied.`);
+      await appendAuditLogEntry({
+        actionType: "automation-reshuffle",
+        summary: `Rule-based schedule reshuffle run by ${getCurrentAdminProfile().name}`,
+        details: [
+          `${plan.actions.length} change${plan.actions.length === 1 ? "" : "s"} applied`,
+          ...plan.details.slice(0, 10),
+        ],
+      });
+    } catch (error) {
+      automationTestState = {
+        ...automationTestState,
+        [automationId]: {
+          message: error.message,
+          timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        },
+      };
+    }
+    render();
+    return;
+  }
+
   if (automation.id === "nightly-pdf-archive") {
     const filename = `daily-ops-schedule-${new Date().toISOString().slice(0, 10)}.csv`;
     const csv = buildArchiveCsvDocument();
@@ -5621,6 +5661,335 @@ function buildNoPhoneRepeatsPlan(text) {
   };
 }
 
+function getRuleScopedTeam(scope, teamData = team) {
+  if (scope === "support") return teamData.filter((person) => person.teamGroup === "core");
+  if (scope === "aco") return teamData.filter((person) => person.teamGroup === "aco");
+  return teamData;
+}
+
+function getAllBlockIndexes() {
+  return timeBlocks.map((_, index) => index);
+}
+
+function parseRuleBlockIndexes(ruleText) {
+  const allBlockIndexes = getAllBlockIndexes();
+  const outsideMatch = String(ruleText || "").match(/outside(?:\s+of)?\s+([^.]+)/i);
+  if (outsideMatch) {
+    const insideBlocks = parseTimeRange(outsideMatch[1]);
+    if (insideBlocks?.length) {
+      return allBlockIndexes.filter((index) => !insideBlocks.includes(index));
+    }
+  }
+
+  const parsed = parseTimeRange(ruleText);
+  if (parsed?.length) return parsed;
+
+  return allBlockIndexes;
+}
+
+function isMinimumCoverageRule(ruleText) {
+  const normalized = normalizeText(ruleText || "");
+  return containsAny(normalized, [
+    "at least",
+    "minimum",
+    "min ",
+    "if possible",
+    "whenever coverage allows",
+    "whenever staffing allows",
+    "as much as possible",
+    "fill as much",
+  ]);
+}
+
+function ruleMentionsPhoneFairness(ruleText) {
+  const normalized = normalizeText(ruleText || "");
+  return normalized.includes("phone") && containsAny(normalized, [
+    "fair",
+    "previous days",
+    "current week",
+    "same week",
+    "minimize repeat",
+    "more than 3",
+    "3 total hours",
+    "three hours",
+  ]);
+}
+
+function parseCoverageRule(ruleText, scope) {
+  const cleaned = String(ruleText || "").trim();
+  if (!cleaned) return null;
+
+  const assignment = findAssignmentFromText(cleaned);
+  const count = parseCount(cleaned);
+  if (!assignment || !count) return null;
+
+  return {
+    scope,
+    assignment,
+    count,
+    minimumOnly: isMinimumCoverageRule(cleaned),
+    blockIndexes: parseRuleBlockIndexes(cleaned),
+    raw: cleaned,
+  };
+}
+
+function getCurrentWeekStartDate() {
+  const today = new Date(`${getTodayKey()}T12:00:00`);
+  const day = today.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  today.setDate(today.getDate() + diff);
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+async function loadArchiveCsvText(archive) {
+  if (!archive?.name || !archive?.url) return "";
+  if (archivePreviewContent[archive.name]) return archivePreviewContent[archive.name];
+  const response = await fetch(archive.url);
+  const text = await response.text();
+  archivePreviewContent = {
+    ...archivePreviewContent,
+    [archive.name]: text,
+  };
+  return text;
+}
+
+async function getWeeklyPhoneHistoryCounts() {
+  const counts = {};
+  if (!backendAvailable) return counts;
+  if (!archiveLibrary.archives?.length) {
+    await refreshArchiveLibrary();
+  }
+
+  const weekStart = getCurrentWeekStartDate();
+  const todayKey = getTodayKey();
+  const candidateArchives = (archiveLibrary.archives || []).filter((archive) => {
+    const match = String(archive.name || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return false;
+    const dateKey = `${match[1]}-${match[2]}-${match[3]}`;
+    if (dateKey >= todayKey) return false;
+    const archiveDate = new Date(`${dateKey}T12:00:00`);
+    return archiveDate >= weekStart;
+  });
+
+  for (const archive of candidateArchives) {
+    try {
+      const csvText = await loadArchiveCsvText(archive);
+      const rows = parseCsvDocument(csvText);
+      if (rows.length < 2) continue;
+      const [headers, ...bodyRows] = rows;
+      const columnIndex = Object.fromEntries(headers.map((header, index) => [header, index]));
+      const assignmentIndex = columnIndex["Assignment"];
+      const nameIndex = columnIndex["Name"];
+      if (!Number.isInteger(assignmentIndex) || !Number.isInteger(nameIndex)) continue;
+      bodyRows.forEach((row) => {
+        if ((row[assignmentIndex] || "") !== "Tier 2 Phones") return;
+        const name = row[nameIndex] || "";
+        if (!name) return;
+        counts[name] = (counts[name] || 0) + 1;
+      });
+    } catch {
+      // Ignore archive rows that cannot be read so the reshuffle can still proceed.
+    }
+  }
+
+  return counts;
+}
+
+function setAssignmentOnTeam(teamData, action) {
+  const person = teamData.find((entry) => personId(entry) === action.personId);
+  if (!person) return;
+  person.assignments[action.blockIndex] = [
+    action.assignment,
+    action.assignment === "Tier 2 Phones",
+  ];
+}
+
+function buildAssignmentAction(person, blockIndex, assignment, reason) {
+  return {
+    type: "set_assignment_block",
+    personId: personId(person),
+    personName: person.name,
+    assignment,
+    blockIndex,
+    previousAssignment: person.assignments[blockIndex][0],
+    reason,
+  };
+}
+
+function upsertAssignmentAction(actionMap, orderedKeys, action) {
+  const key = `${action.personId}:${action.blockIndex}`;
+  if (!orderedKeys.includes(key)) orderedKeys.push(key);
+  actionMap.set(key, action);
+}
+
+function pickRulePeopleForAssignment(teamData, targetCount, assignment, blockIndex, options = {}) {
+  const excludedIds = new Set(options.excludePersonIds || []);
+  const managerSelected = {};
+  const weeklyPhoneCounts = options.weeklyPhoneCounts || {};
+  const candidates = teamData
+    .filter((person) => personWorksBlock(person, blockIndex))
+    .filter((person) => !personIsOut(person))
+    .filter((person) => personHasSkill(person, assignment))
+    .filter((person) => !excludedIds.has(personId(person)))
+    .sort((a, b) => {
+      const aAlready = a.assignments[blockIndex][0] === assignment ? -3 : 0;
+      const bAlready = b.assignments[blockIndex][0] === assignment ? -3 : 0;
+      if (aAlready !== bAlready) return aAlready - bAlready;
+
+      if (assignment === "Tier 2 Phones") {
+        const aWeekly = weeklyPhoneCounts[a.name] || 0;
+        const bWeekly = weeklyPhoneCounts[b.name] || 0;
+        if (aWeekly !== bWeekly) return aWeekly - bWeekly;
+      }
+
+      const aLoad = countAssignmentBlocks(a, assignment);
+      const bLoad = countAssignmentBlocks(b, assignment);
+      if (assignment === "Tier 2 Phones") {
+        const aPenalty = aLoad >= 3 ? aLoad - 2 : 0;
+        const bPenalty = bLoad >= 3 ? bLoad - 2 : 0;
+        if (aPenalty !== bPenalty) return aPenalty - bPenalty;
+      }
+      if (aLoad !== bLoad) return aLoad - bLoad;
+
+      if (options.balanceManagers) {
+        const aManagerLoad = managerSelected[a.manager] || 0;
+        const bManagerLoad = managerSelected[b.manager] || 0;
+        if (aManagerLoad !== bManagerLoad) return aManagerLoad - bManagerLoad;
+      }
+
+      const shiftScore = scheduleStartValue(a.schedule) - scheduleStartValue(b.schedule);
+      if (shiftScore !== 0) return shiftScore;
+      return a.name.localeCompare(b.name);
+    });
+
+  const selected = [];
+  while (selected.length < targetCount && candidates.length > 0) {
+    candidates.sort((a, b) => {
+      const aAlready = a.assignments[blockIndex][0] === assignment ? -3 : 0;
+      const bAlready = b.assignments[blockIndex][0] === assignment ? -3 : 0;
+      if (aAlready !== bAlready) return aAlready - bAlready;
+
+      if (assignment === "Tier 2 Phones") {
+        const aWeekly = weeklyPhoneCounts[a.name] || 0;
+        const bWeekly = weeklyPhoneCounts[b.name] || 0;
+        if (aWeekly !== bWeekly) return aWeekly - bWeekly;
+
+        const aPhoneLoad = countAssignmentBlocks(a, assignment);
+        const bPhoneLoad = countAssignmentBlocks(b, assignment);
+        const aPenalty = aPhoneLoad >= 3 ? aPhoneLoad - 2 : 0;
+        const bPenalty = bPhoneLoad >= 3 ? bPhoneLoad - 2 : 0;
+        if (aPenalty !== bPenalty) return aPenalty - bPenalty;
+      }
+
+      if (options.balanceManagers) {
+        const aManagerLoad = managerSelected[a.manager] || 0;
+        const bManagerLoad = managerSelected[b.manager] || 0;
+        if (aManagerLoad !== bManagerLoad) return aManagerLoad - bManagerLoad;
+      }
+
+      const aLoad = countAssignmentBlocks(a, assignment);
+      const bLoad = countAssignmentBlocks(b, assignment);
+      if (aLoad !== bLoad) return aLoad - bLoad;
+      return scheduleStartValue(a.schedule) - scheduleStartValue(b.schedule);
+    });
+
+    const person = candidates.shift();
+    selected.push(person);
+    managerSelected[person.manager] = (managerSelected[person.manager] || 0) + 1;
+  }
+
+  return selected;
+}
+
+async function buildRuleBasedReshufflePlan() {
+  const ruleGroups = loadSchedulingRules();
+  const filledRules = {
+    all: normalizeSchedulingRuleList(ruleGroups.all).filter((rule) => String(rule || "").trim()),
+    support: normalizeSchedulingRuleList(ruleGroups.support).filter((rule) => String(rule || "").trim()),
+    aco: normalizeSchedulingRuleList(ruleGroups.aco).filter((rule) => String(rule || "").trim()),
+  };
+
+  const allRuleText = [...filledRules.all, ...filledRules.support, ...filledRules.aco];
+  if (!allRuleText.length) {
+    throw new Error("Add at least one scheduling rule before running the reshuffle.");
+  }
+
+  const coverageRules = [
+    ...filledRules.all.map((rule) => parseCoverageRule(rule, "all")),
+    ...filledRules.support.map((rule) => parseCoverageRule(rule, "support")),
+    ...filledRules.aco.map((rule) => parseCoverageRule(rule, "aco")),
+  ].filter(Boolean);
+
+  if (!coverageRules.length) {
+    throw new Error("I could not find any coverage targets in the saved rules yet.");
+  }
+
+  const shouldUseWeeklyPhoneHistory = allRuleText.some(ruleMentionsPhoneFairness);
+  const weeklyPhoneCounts = shouldUseWeeklyPhoneHistory ? await getWeeklyPhoneHistoryCounts() : {};
+  const simulationTeam = cloneData(team);
+  const actionMap = new Map();
+  const orderedKeys = [];
+  const detailLines = [];
+
+  coverageRules.forEach((rule) => {
+    const scopedTeam = getRuleScopedTeam(rule.scope, simulationTeam);
+    rule.blockIndexes.forEach((blockIndex) => {
+      const chosen = pickRulePeopleForAssignment(scopedTeam, rule.count, rule.assignment, blockIndex, {
+        balanceManagers: true,
+        weeklyPhoneCounts,
+      });
+      const chosenIds = new Set(chosen.map((person) => personId(person)));
+      const currentAssigned = scopedTeam.filter(
+        (person) => person.assignments[blockIndex][0] === rule.assignment
+      );
+
+      if (!rule.minimumOnly && currentAssigned.length > rule.count) {
+        currentAssigned
+          .filter((person) => !chosenIds.has(personId(person)))
+          .forEach((person) => {
+            const fallbackAssignment = findFallbackAssignment(person, blockIndex);
+            const action = buildAssignmentAction(
+              person,
+              blockIndex,
+              fallbackAssignment,
+              `reshuffle rule: reduce ${rule.assignment} to ${rule.count}`
+            );
+            upsertAssignmentAction(actionMap, orderedKeys, action);
+            setAssignmentOnTeam(simulationTeam, action);
+          });
+      }
+
+      chosen.forEach((person) => {
+        const action = buildAssignmentAction(
+          person,
+          blockIndex,
+          rule.assignment,
+          `reshuffle rule: ${rule.raw}`
+        );
+        upsertAssignmentAction(actionMap, orderedKeys, action);
+        setAssignmentOnTeam(simulationTeam, action);
+      });
+
+      const names = chosen.map((person) => person.name).join(", ") || "no available staff";
+      detailLines.push(`${getSchedulingScopeLabel(rule.scope)} • ${formatBlockLabel(blockIndex)} • ${rule.assignment}: ${names}`);
+    });
+  });
+
+  const actions = orderedKeys.map((key) => actionMap.get(key)).filter(Boolean);
+  if (!actions.length) {
+    throw new Error("The saved rules did not require any schedule changes right now.");
+  }
+
+  return {
+    title: "Rule-based schedule reshuffle",
+    summary: `Applied ${coverageRules.length} scheduling rule${coverageRules.length === 1 ? "" : "s"} across All, Support, and ACO.`,
+    actions,
+    details: detailLines,
+    ruleCount: coverageRules.length,
+  };
+}
+
 function answerFollowUpQuestion(text) {
   const normalized = normalizeText(text);
   const plan = pendingPlan || lastReviewedPlan;
@@ -6459,7 +6828,11 @@ function renderAdminPasswordManager() {
 function renderAutomations() {
   if (!automationsList) return;
 
-  const automations = loadAutomationPreferences();
+  const automations = loadAutomationPreferences().sort((a, b) => {
+    if (a.id === "rule-based-reshuffle") return -1;
+    if (b.id === "rule-based-reshuffle") return 1;
+    return 0;
+  });
   automationsList.innerHTML = automations
     .map((automation) => {
       const testState = automationTestState[automation.id];
@@ -6499,7 +6872,17 @@ function renderAutomations() {
                     </div>
                   </div>
                 `
-                : ""
+                : automation.kind === "schedule-reshuffle"
+                  ? `
+                    <div class="automation-settings">
+                      <div class="automation-cloud-status automation-settings-wide">
+                        <span>Rule-based schedule automation</span>
+                        <div class="automation-cloud-note">Manual run applies the saved All, Support, and ACO scheduling rules to today’s board.</div>
+                        <div class="automation-cloud-note">Use this after updating scheduling rules when you want the board reshuffled to match them.</div>
+                      </div>
+                    </div>
+                  `
+                  : ""
             }
             <div class="automation-meta">
               ${
@@ -6516,7 +6899,7 @@ function renderAutomations() {
               <span class="automation-switch-label">${automation.enabled ? "Enabled" : "Disabled"}</span>
             </label>
             <button type="button" class="secondary-button automation-test-button" data-automation-test="${automation.id}">
-              Manual Run
+              ${automation.kind === "schedule-reshuffle" ? "Reshuffle Now" : "Manual Run"}
             </button>
           </div>
         </article>
