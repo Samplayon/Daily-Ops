@@ -1356,13 +1356,13 @@ select {
 }
 
 .panel-archives {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .archives-list {
   display: grid;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .archive-row {
@@ -1371,8 +1371,8 @@ select {
   justify-content: space-between;
   gap: 14px;
   align-items: center;
-  padding: 16px 18px;
-  border-radius: 18px;
+  padding: 12px 16px;
+  border-radius: 16px;
   border: 1px solid rgba(5, 8, 13, 0.08);
   background: rgba(255, 255, 255, 0.78);
   color: var(--ink);
@@ -1388,7 +1388,7 @@ select {
 }
 
 .archive-meta {
-  margin-top: 4px;
+  margin-top: 2px;
   color: var(--muted);
   font-size: 0.9rem;
 }
@@ -1401,9 +1401,9 @@ select {
 
 .archive-preview {
   border: 1px solid rgba(5, 8, 13, 0.08);
-  border-radius: 22px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.82);
-  padding: 18px;
+  padding: 14px 16px;
 }
 
 .archive-preview.hidden {
@@ -1422,7 +1422,7 @@ select {
   list-style: none;
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   align-items: center;
   cursor: pointer;
 }
@@ -1437,7 +1437,7 @@ select {
 }
 
 .archive-preview-meta {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   color: var(--muted);
 }
 
@@ -1447,13 +1447,13 @@ select {
 }
 
 .archive-preview-body {
-  margin-top: 14px;
+  margin-top: 10px;
 }
 
 .archive-preview-header-actions {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .archive-lookup {
@@ -1524,7 +1524,7 @@ select {
   max-height: 680px;
   overflow: auto;
   border: 1px solid rgba(5, 8, 13, 0.08);
-  border-radius: 18px;
+  border-radius: 16px;
   background: #ffffff;
 }
 
@@ -1537,7 +1537,7 @@ select {
 
 .archive-preview-table th,
 .archive-preview-table td {
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid rgba(5, 8, 13, 0.08);
   text-align: left;
   vertical-align: top;
@@ -1556,7 +1556,7 @@ select {
 }
 
 .archive-preview-empty {
-  padding: 24px;
+  padding: 18px;
   color: var(--muted);
 }
 
