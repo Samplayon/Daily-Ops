@@ -2316,11 +2316,15 @@ const agentCoverageTitle = document.getElementById("agent-coverage-title");
 const agentCoverageSubtitle = document.getElementById("agent-coverage-subtitle");
 const agentCoverageChart = document.getElementById("agent-coverage-chart");
 const boardTabButton = document.getElementById("board-tab");
+const shiftTabButton = document.getElementById("shift-tab");
 const skillsTabButton = document.getElementById("skills-tab");
 const automationsTabButton = document.getElementById("automations-tab");
 const boardView = document.getElementById("board-view");
+const shiftView = document.getElementById("shift-view");
 const skillsView = document.getElementById("skills-view");
 const automationsView = document.getElementById("automations-view");
+const shiftSearchInput = document.getElementById("shift-search-input");
+const shiftEditorList = document.getElementById("shift-editor-list");
 const skillsMatrix = document.getElementById("skills-matrix");
 const schedulingRulesCard = document.getElementById("scheduling-rules-card");
 const automationsList = document.getElementById("automations-list");
@@ -2381,6 +2385,7 @@ let assistantTeamMode = "all";
 let assistantManagerMode = "all";
 let editingBoardRow = null;
 let editingShiftPersonId = null;
+let shiftSearchTerm = "";
 let blockLayout = {
   baseSize: 1,
   focus: null,
@@ -5788,14 +5793,17 @@ function renderSummary(filteredTeam) {
 
 function renderWorkspaceTabs() {
   const showingBoard = activeWorkspaceTab === "board";
+  const showingShift = activeWorkspaceTab === "shift";
   const showingSkills = activeWorkspaceTab === "skills";
   const showingAutomations = activeWorkspaceTab === "automations";
 
   boardView.classList.toggle("hidden", !showingBoard);
+  shiftView.classList.toggle("hidden", !showingShift);
   skillsView.classList.toggle("hidden", !showingSkills);
   automationsView.classList.toggle("hidden", !showingAutomations);
 
   boardTabButton.classList.toggle("active", showingBoard);
+  shiftTabButton.classList.toggle("active", showingShift);
   skillsTabButton.classList.toggle("active", showingSkills);
   automationsTabButton.classList.toggle("active", showingAutomations);
 }
@@ -6378,6 +6386,134 @@ function renderBoard(filteredTeam) {
   });
 }
 
+function renderShiftEditor() {
+  if (!shiftEditorList) return;
+
+  const normalizedQuery = normalizeText(shiftSearchTerm || "").trim();
+  const visiblePeople = [...team]
+    .filter((person) => {
+      if (!normalizedQuery) return true;
+      const haystack = normalizeText(
+        [person.name, person.manager, person.title, person.schedule].filter(Boolean).join(" ")
+      );
+      return haystack.includes(normalizedQuery);
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (!visiblePeople.length) {
+    shiftEditorList.innerHTML = `<div class="empty-state">No specialists match that search.</div>`;
+    return;
+  }
+
+  shiftEditorList.innerHTML = visiblePeople
+    .map((person) => {
+      const currentShiftWindow = parseScheduleWindow(person.schedule) || {
+        normalizedStart: 8,
+        normalizedEnd: 17,
+      };
+      const currentStartHour = Math.max(8, Math.floor(currentShiftWindow.normalizedStart));
+      const currentEndHour = Math.min(24, Math.ceil(currentShiftWindow.normalizedEnd));
+      const shiftOptionMarkup = shiftTimeOptions
+        .map(
+          (hour) =>
+            `<option value="${hour}" ${hour === currentStartHour ? "selected" : ""}>${formatShiftHour(hour)}</option>`
+        )
+        .join("");
+      const shiftEndMarkup = shiftTimeOptions
+        .filter((hour) => hour > currentStartHour)
+        .map(
+          (hour) =>
+            `<option value="${hour}" ${hour === currentEndHour ? "selected" : ""}>${formatShiftHour(hour)}</option>`
+        )
+        .join("");
+
+      return `
+        <article class="shift-editor-card">
+          <div class="shift-editor-copy">
+            <div class="person-name">${person.name}</div>
+            <div class="person-meta">${person.title} • ${person.manager}</div>
+            <div class="schedule-badge">Current shift: ${person.schedule}</div>
+          </div>
+          <div class="shift-edit-panel shift-editor-panel">
+            <div class="shift-edit-grid">
+              <label>
+                <span>Start time</span>
+                <select class="shift-edit-select shift-edit-start" data-person-id="${personId(person)}">
+                  ${shiftOptionMarkup}
+                </select>
+              </label>
+              <label>
+                <span>End time</span>
+                <select class="shift-edit-select shift-edit-end" data-person-id="${personId(person)}">
+                  ${shiftEndMarkup}
+                </select>
+              </label>
+            </div>
+            <div class="shift-edit-scope">
+              <label class="shift-scope-option">
+                <input type="radio" name="shift-editor-scope-${personId(person)}" value="today" checked />
+                <span>Apply to today only</span>
+              </label>
+              <label class="shift-scope-option">
+                <input type="radio" name="shift-editor-scope-${personId(person)}" value="permanent" />
+                <span>Make this permanent</span>
+              </label>
+            </div>
+            <div class="manual-edit-actions">
+              <button type="button" class="shift-save-button" data-person-id="${personId(person)}">Save Shift</button>
+            </div>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  shiftEditorList.querySelectorAll(".shift-edit-start").forEach((select) => {
+    select.addEventListener("change", () => {
+      const personKey = select.dataset.personId || "";
+      const endSelect = shiftEditorList.querySelector(`.shift-edit-end[data-person-id="${personKey}"]`);
+      if (!endSelect) return;
+      const startValue = Number(select.value);
+      const previousEnd = Number(endSelect.value || startValue + 1);
+      endSelect.innerHTML = shiftTimeOptions
+        .filter((hour) => hour > startValue)
+        .map(
+          (hour) =>
+            `<option value="${hour}" ${hour === previousEnd ? "selected" : ""}>${formatShiftHour(hour)}</option>`
+        )
+        .join("");
+      if (!endSelect.value) {
+        endSelect.value = String(Math.min(24, startValue + 1));
+      }
+    });
+  });
+
+  shiftEditorList.querySelectorAll(".shift-save-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const person = getPersonById(button.dataset.personId || "");
+      if (!person) return;
+
+      const startSelect = shiftEditorList.querySelector(
+        `.shift-edit-start[data-person-id="${button.dataset.personId}"]`
+      );
+      const endSelect = shiftEditorList.querySelector(
+        `.shift-edit-end[data-person-id="${button.dataset.personId}"]`
+      );
+      const modeInput = shiftEditorList.querySelector(
+        `input[name="shift-editor-scope-${button.dataset.personId}"]:checked`
+      );
+      if (!startSelect || !endSelect || !modeInput) return;
+
+      const startHour = Number(startSelect.value);
+      const endHour = Number(endSelect.value);
+      if (!Number.isFinite(startHour) || !Number.isFinite(endHour) || endHour <= startHour) return;
+
+      saveShiftChange(person, formatScheduleValue(startHour, endHour), modeInput.value);
+      render();
+    });
+  });
+}
+
 function renderAgentBoard() {
   const person = getPersonById(selectedAgentId);
   if (!person) {
@@ -6500,6 +6636,7 @@ function render() {
   renderWorkspaceTabs();
   renderChart(filteredTeam);
   renderBoard(filteredTeam);
+  renderShiftEditor();
   renderSkillsMatrix(filteredTeam);
   renderAssignmentManager();
   renderSchedulingRules();
@@ -6518,6 +6655,10 @@ boardTabButton.addEventListener("click", () => {
   activeWorkspaceTab = "board";
   render();
 });
+shiftTabButton.addEventListener("click", () => {
+  activeWorkspaceTab = "shift";
+  render();
+});
 skillsTabButton.addEventListener("click", () => {
   activeWorkspaceTab = "skills";
   render();
@@ -6525,6 +6666,10 @@ skillsTabButton.addEventListener("click", () => {
 automationsTabButton.addEventListener("click", () => {
   activeWorkspaceTab = "automations";
   render();
+});
+shiftSearchInput?.addEventListener("input", (event) => {
+  shiftSearchTerm = event.target.value || "";
+  renderShiftEditor();
 });
 assistantGoalSelect.addEventListener("change", syncAssistantBuilder);
 assistantBuildRequestButton.addEventListener("click", buildAssistantRequestFromForm);

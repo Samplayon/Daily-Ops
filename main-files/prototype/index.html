@@ -226,6 +226,7 @@
         <section class="panel panel-workspace">
           <div class="workspace-tabs">
             <button id="board-tab" type="button" class="workspace-tab active">Board</button>
+            <button id="shift-tab" type="button" class="workspace-tab secondary-button">Shift Changes</button>
             <button id="skills-tab" type="button" class="workspace-tab secondary-button">Skills</button>
             <button id="automations-tab" type="button" class="workspace-tab secondary-button">Automations</button>
           </div>
@@ -300,6 +301,24 @@
               <div class="board-wrap">
                 <div id="ops-board" class="assignment-board"></div>
               </div>
+            </section>
+          </div>
+
+          <div id="shift-view" class="workspace-view hidden">
+            <section class="panel nested-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Shift Changes</h2>
+                  <p>Search for a specialist and update their hours for today or permanently.</p>
+                </div>
+              </div>
+              <div class="shift-search-row">
+                <label class="shift-search-field">
+                  <span>Search specialist</span>
+                  <input id="shift-search-input" type="text" class="portal-input" placeholder="Type a name or manager" />
+                </label>
+              </div>
+              <div id="shift-editor-list" class="shift-editor-list"></div>
             </section>
           </div>
 
