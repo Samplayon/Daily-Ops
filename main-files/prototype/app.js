@@ -2357,6 +2357,7 @@ const shiftEditorList = document.getElementById("shift-editor-list");
 const skillsMatrix = document.getElementById("skills-matrix");
 const schedulingRulesCard = document.getElementById("scheduling-rules-card");
 const automationsList = document.getElementById("automations-list");
+const reshuffleReportCard = document.getElementById("reshuffle-report-card");
 const adminPasswordCard = document.getElementById("admin-password-card");
 const auditLogPanel = document.getElementById("audit-log-panel");
 const auditLogList = document.getElementById("audit-log-list");
@@ -2402,6 +2403,7 @@ let notificationAudioContext = null;
 let editableSkillAssignments = [...baseEditableSkillAssignments];
 let assignmentAliases = [...baseAssignmentAliases];
 let assignmentOptions = [];
+let customAssignmentsState = loadCustomAssignments();
 
 const automationDefinitions = [
   {
@@ -2439,6 +2441,7 @@ let messages = [
 ];
 
 const shiftOverrideStorageKey = "daily-ops-shift-overrides-v1";
+const reshuffleReportStorageKey = "daily-ops-reshuffle-report-v1";
 const auditLogFallbackStorageKey = "daily-ops-audit-log-v1";
 const adminPasswordsStorageKey = "daily-ops-admin-passwords-v1";
 const shiftTimeOptions = Array.from({ length: 17 }, (_, index) => 8 + index);
@@ -2451,9 +2454,74 @@ let adminPasswordSaveState = {
   message: "",
   tone: "",
 };
+let latestReshuffleReport = loadReshuffleReport();
 
 function getTodayKey() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function loadReshuffleReport() {
+  try {
+    const raw = window.localStorage.getItem(reshuffleReportStorageKey);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveReshuffleReport(report) {
+  latestReshuffleReport = report;
+  try {
+    if (!report) {
+      window.localStorage.removeItem(reshuffleReportStorageKey);
+      return;
+    }
+    window.localStorage.setItem(reshuffleReportStorageKey, JSON.stringify(report));
+  } catch {
+    // Ignore storage failures so the UI still works.
+  }
+}
+
+function renderReshuffleReportCard() {
+  if (!reshuffleReportCard) return;
+  if (!latestReshuffleReport) {
+    reshuffleReportCard.innerHTML = `
+      <div class="panel-header">
+        <div>
+          <h2>Last Reshuffle Logic</h2>
+          <p>Run a manual reshuffle to capture the rules and reasoning used.</p>
+        </div>
+      </div>
+      <div class="reshuffle-report-empty">No manual reshuffle explanation has been saved yet.</div>
+    `;
+    return;
+  }
+
+  const lines = (latestReshuffleReport.details || []).slice(0, 12);
+  reshuffleReportCard.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <h2>Last Reshuffle Logic</h2>
+        <p>Use this summary when you want to review or audit the most recent manual reshuffle.</p>
+      </div>
+      <span class="panel-badge">${latestReshuffleReport.timestampLabel || "Saved"}</span>
+    </div>
+    <div class="reshuffle-report-summary">${latestReshuffleReport.summary}</div>
+    <div class="reshuffle-report-stats">
+      <div class="reshuffle-report-stat"><span>Saved rules</span><strong>${latestReshuffleReport.ruleCount || 0}</strong></div>
+      <div class="reshuffle-report-stat"><span>Direct scheduling rules</span><strong>${latestReshuffleReport.actionableRuleCount || 0}</strong></div>
+      <div class="reshuffle-report-stat"><span>Changes applied</span><strong>${latestReshuffleReport.actionCount || 0}</strong></div>
+      <div class="reshuffle-report-stat"><span>Run by</span><strong>${latestReshuffleReport.runBy || "Unknown"}</strong></div>
+    </div>
+    <div class="reshuffle-report-section">
+      <h4>Rule snapshot</h4>
+      <div class="reshuffle-report-rules">${(latestReshuffleReport.rules || []).map((rule) => `<div class="reshuffle-report-rule">${rule}</div>`).join("")}</div>
+    </div>
+    <div class="reshuffle-report-section">
+      <h4>Why these changes happened</h4>
+      <ul class="reshuffle-report-list">${lines.map((line) => `<li>${line}</li>`).join("")}</ul>
+    </div>
+  `;
 }
 
 function loadShiftOverrides() {
@@ -2750,18 +2818,60 @@ function getAssignmentManagerKey() {
   return "daily-ops-custom-assignments";
 }
 
+function normalizeCustomAssignments(assignments) {
+  return Array.isArray(assignments)
+    ? [...new Set(assignments.map((entry) => String(entry || "").trim()).filter(Boolean))]
+    : [];
+}
+
 function loadCustomAssignments() {
+  if (Array.isArray(customAssignmentsState)) {
+    return [...customAssignmentsState];
+  }
   try {
     const raw = window.localStorage.getItem(getAssignmentManagerKey());
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.map((entry) => String(entry || "").trim()).filter(Boolean) : [];
+    customAssignmentsState = normalizeCustomAssignments(parsed);
+    return [...customAssignmentsState];
   } catch {
+    customAssignmentsState = [];
     return [];
   }
 }
 
 function saveCustomAssignments(assignments) {
-  window.localStorage.setItem(getAssignmentManagerKey(), JSON.stringify(assignments));
+  customAssignmentsState = normalizeCustomAssignments(assignments);
+  window.localStorage.setItem(getAssignmentManagerKey(), JSON.stringify(customAssignmentsState));
+  return [...customAssignmentsState];
+}
+
+async function syncCustomAssignmentsFromServer() {
+  try {
+    const response = await fetch("/api/assignments");
+    if (!response.ok) throw new Error(`Failed to load assignments (${response.status})`);
+    const payload = await response.json();
+    saveCustomAssignments(payload?.assignments || []);
+    refreshAssignmentCollections();
+    refreshAssignmentControls();
+    renderAssignmentManager();
+  } catch {
+    refreshAssignmentCollections();
+    refreshAssignmentControls();
+    renderAssignmentManager();
+  }
+}
+
+async function persistCustomAssignments(assignments) {
+  try {
+    const response = await fetch("/api/assignments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignments }),
+    });
+    if (!response.ok) throw new Error(`Failed to save assignments (${response.status})`);
+    const payload = await response.json();
+    saveCustomAssignments(payload?.assignments || assignments);
+  } catch {}
 }
 
 function addCustomAssignment(assignmentName) {
@@ -2770,7 +2880,8 @@ function addCustomAssignment(assignmentName) {
   if (assignmentOptions.includes(nextAssignment)) return false;
   const custom = loadCustomAssignments();
   custom.push(nextAssignment);
-  saveCustomAssignments(custom);
+  const savedCustomAssignments = saveCustomAssignments(custom);
+  void persistCustomAssignments(savedCustomAssignments);
   refreshAssignmentCollections();
   refreshAssignmentControls();
   return true;
@@ -2888,7 +2999,8 @@ function renderAssignmentManager() {
     button.addEventListener("click", () => {
       const assignment = button.dataset.removeAssignment || "";
       const nextCustom = loadCustomAssignments().filter((entry) => entry !== assignment);
-      saveCustomAssignments(nextCustom);
+      const savedCustomAssignments = saveCustomAssignments(nextCustom);
+      void persistCustomAssignments(savedCustomAssignments);
       removeAssignmentEverywhere(assignment);
       delete assignmentColors[assignment];
       refreshAssignmentCollections();
@@ -4529,6 +4641,17 @@ async function runAutomationTest(automationId) {
           timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
         },
       };
+      saveReshuffleReport({
+        timestamp: new Date().toISOString(),
+        timestampLabel: new Date().toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
+        runBy: getCurrentAdminProfile().name,
+        summary: plan.summary,
+        ruleCount: plan.ruleCount || 0,
+        actionableRuleCount: plan.actionableRuleCount || 0,
+        actionCount: plan.actions.length,
+        rules: plan.rulesUsed || [],
+        details: plan.details || [],
+      });
       addMessage("assistant", `I reshuffled today’s schedule using the saved All, Support, and ACO rules. ${plan.actions.length} change${plan.actions.length === 1 ? "" : "s"} were applied.`);
       await appendAuditLogEntry({
         actionType: "automation-reshuffle",
@@ -6081,6 +6204,7 @@ async function buildRuleBasedReshufflePlan() {
     details: detailLines,
     ruleCount: savedRuleCount,
     actionableRuleCount,
+    rulesUsed: allRuleText,
   };
 }
 
@@ -7781,6 +7905,7 @@ function render() {
   renderSchedulingRules();
   renderAdminPasswordManager();
   renderAutomations();
+  renderReshuffleReportCard();
   renderAuditLog();
   renderArchives();
   renderAgentBoard();
@@ -7963,4 +8088,5 @@ refreshArchiveLibrary().finally(() => {
   render();
   void syncSchedulingRulesFromServer();
   void syncAdminPasswordsFromServer();
+  void syncCustomAssignmentsFromServer();
 });

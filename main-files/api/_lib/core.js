@@ -5,6 +5,7 @@ const SNAPSHOT_PREFIX = "__snapshot__-";
 const SCHEDULING_RULES_OBJECT = "__config__-scheduling-rules.json";
 const AUDIT_LOG_OBJECT = "__config__-audit-log.json";
 const ADMIN_PASSWORDS_OBJECT = "__config__-admin-passwords.json";
+const CUSTOM_ASSIGNMENTS_OBJECT = "__config__-custom-assignments.json";
 
 const PLAN_SCHEMA = {
   type: "object",
@@ -253,6 +254,16 @@ function defaultAdminPasswords() {
   return {};
 }
 
+function defaultCustomAssignments() {
+  return [];
+}
+
+function normalizeCustomAssignments(payload) {
+  return Array.isArray(payload)
+    ? [...new Set(payload.map((entry) => String(entry || "").trim()).filter(Boolean))]
+    : defaultCustomAssignments();
+}
+
 function normalizeAdminPasswords(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return defaultAdminPasswords();
@@ -358,6 +369,25 @@ async function writeAdminPasswords(passwords) {
   const normalized = normalizeAdminPasswords(passwords);
   await uploadObject(
     ADMIN_PASSWORDS_OBJECT,
+    "application/json; charset=utf-8",
+    Buffer.from(JSON.stringify(normalized, null, 2))
+  );
+  return normalized;
+}
+
+async function readCustomAssignments() {
+  try {
+    const { body } = await downloadObject(CUSTOM_ASSIGNMENTS_OBJECT);
+    return normalizeCustomAssignments(JSON.parse(body.toString("utf8") || "[]"));
+  } catch {
+    return defaultCustomAssignments();
+  }
+}
+
+async function writeCustomAssignments(assignments) {
+  const normalized = normalizeCustomAssignments(assignments);
+  await uploadObject(
+    CUSTOM_ASSIGNMENTS_OBJECT,
     "application/json; charset=utf-8",
     Buffer.from(JSON.stringify(normalized, null, 2))
   );
@@ -556,6 +586,7 @@ module.exports = {
   getSupabaseConfig,
   processArchiveBacklog,
   readAdminPasswords,
+  readCustomAssignments,
   readAuditLog,
   readArchiveSettings,
   readJsonBody,
@@ -566,6 +597,7 @@ module.exports = {
   sendPlanError,
   uploadObject,
   writeAdminPasswords,
+  writeCustomAssignments,
   writeArchiveSettings,
   writeAuditLog,
   writeSchedulingRules,
