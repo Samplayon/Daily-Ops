@@ -6162,46 +6162,62 @@ async function loadArchiveCsvText(archive) {
   return text;
 }
 
-async function getWeeklyPhoneHistoryCounts() {
+async function getLatestPhoneHistoryContext() {
   const counts = {};
-  if (!backendAvailable) return counts;
+  const previousDayOutNames = new Set();
+  if (!backendAvailable) {
+    return { counts, previousDayOutNames };
+  }
   if (!archiveLibrary.archives?.length) {
     await refreshArchiveLibrary();
   }
 
-  const weekStart = getCurrentWeekStartDate();
   const todayKey = getTodayKey();
-  const candidateArchives = (archiveLibrary.archives || []).filter((archive) => {
-    const match = String(archive.name || "").match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (!match) return false;
-    const dateKey = `${match[1]}-${match[2]}-${match[3]}`;
-    if (dateKey >= todayKey) return false;
-    const archiveDate = new Date(`${dateKey}T12:00:00`);
-    return archiveDate >= weekStart;
-  });
+  const latestArchive = (archiveLibrary.archives || [])
+    .map((archive) => {
+      const match = String(archive.name || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+      if (!match) return null;
+      const dateKey = `${match[1]}-${match[2]}-${match[3]}`;
+      if (dateKey >= todayKey) return null;
+      return { archive, dateKey };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.dateKey.localeCompare(a.dateKey))[0];
 
-  for (const archive of candidateArchives) {
-    try {
-      const csvText = await loadArchiveCsvText(archive);
-      const rows = parseCsvDocument(csvText);
-      if (rows.length < 2) continue;
-      const [headers, ...bodyRows] = rows;
-      const columnIndex = Object.fromEntries(headers.map((header, index) => [header, index]));
-      const assignmentIndex = columnIndex["Assignment"];
-      const nameIndex = columnIndex["Name"];
-      if (!Number.isInteger(assignmentIndex) || !Number.isInteger(nameIndex)) continue;
-      bodyRows.forEach((row) => {
-        if ((row[assignmentIndex] || "") !== "Tier 2 Phones") return;
-        const name = row[nameIndex] || "";
-        if (!name) return;
-        counts[name] = (counts[name] || 0) + 1;
-      });
-    } catch {
-      // Ignore archive rows that cannot be read so the reshuffle can still proceed.
-    }
+  if (!latestArchive) {
+    return { counts, previousDayOutNames };
   }
 
-  return counts;
+  try {
+    const csvText = await loadArchiveCsvText(latestArchive.archive);
+    const rows = parseCsvDocument(csvText);
+    if (rows.length < 2) {
+      return { counts, previousDayOutNames };
+    }
+    const [headers, ...bodyRows] = rows;
+    const columnIndex = Object.fromEntries(headers.map((header, index) => [header, index]));
+    const assignmentIndex = columnIndex["Assignment"];
+    const nameIndex = columnIndex["Name"];
+    if (!Number.isInteger(assignmentIndex) || !Number.isInteger(nameIndex)) {
+      return { counts, previousDayOutNames };
+    }
+
+    bodyRows.forEach((row) => {
+      const assignment = row[assignmentIndex] || "";
+      const name = row[nameIndex] || "";
+      if (!name) return;
+      if (assignment === "Tier 2 Phones") {
+        counts[name] = (counts[name] || 0) + 1;
+      }
+      if (assignment === "OOO/Sick/PTO") {
+        previousDayOutNames.add(name);
+      }
+    });
+  } catch {
+    // Ignore archive rows that cannot be read so the reshuffle can still proceed.
+  }
+
+  return { counts, previousDayOutNames };
 }
 
 function setAssignmentOnTeam(teamData, action) {
@@ -6235,6 +6251,7 @@ function pickRulePeopleForAssignment(teamData, targetCount, assignment, blockInd
   const excludedIds = new Set(options.excludePersonIds || []);
   const managerSelected = {};
   const weeklyPhoneCounts = options.weeklyPhoneCounts || {};
+  const previousDayOutNames = options.previousDayOutNames || new Set();
   const candidates = teamData
     .filter((person) => personWorksBlock(person, blockIndex))
     .filter((person) => !personIsOut(person))
@@ -6246,8 +6263,12 @@ function pickRulePeopleForAssignment(teamData, targetCount, assignment, blockInd
       if (aAlready !== bAlready) return aAlready - bAlready;
 
       if (assignment === "Tier 2 Phones") {
-        const aWeekly = weeklyPhoneCounts[a.name] || 0;
-        const bWeekly = weeklyPhoneCounts[b.name] || 0;
+        const aWasOutYesterday = a.teamGroup === "core" && previousDayOutNames.has(a.name) ? 1 : 0;
+        const bWasOutYesterday = b.teamGroup === "core" && previousDayOutNames.has(b.name) ? 1 : 0;
+        if (aWasOutYesterday !== bWasOutYesterday) return bWasOutYesterday - aWasOutYesterday;
+
+        const aWeekly = a.teamGroup === "core" ? (weeklyPhoneCounts[a.name] || 0) : 0;
+        const bWeekly = b.teamGroup === "core" ? (weeklyPhoneCounts[b.name] || 0) : 0;
         if (aWeekly !== bWeekly) return aWeekly - bWeekly;
       }
 
@@ -6279,8 +6300,12 @@ function pickRulePeopleForAssignment(teamData, targetCount, assignment, blockInd
       if (aAlready !== bAlready) return aAlready - bAlready;
 
       if (assignment === "Tier 2 Phones") {
-        const aWeekly = weeklyPhoneCounts[a.name] || 0;
-        const bWeekly = weeklyPhoneCounts[b.name] || 0;
+        const aWasOutYesterday = a.teamGroup === "core" && previousDayOutNames.has(a.name) ? 1 : 0;
+        const bWasOutYesterday = b.teamGroup === "core" && previousDayOutNames.has(b.name) ? 1 : 0;
+        if (aWasOutYesterday !== bWasOutYesterday) return bWasOutYesterday - aWasOutYesterday;
+
+        const aWeekly = a.teamGroup === "core" ? (weeklyPhoneCounts[a.name] || 0) : 0;
+        const bWeekly = b.teamGroup === "core" ? (weeklyPhoneCounts[b.name] || 0) : 0;
         if (aWeekly !== bWeekly) return aWeekly - bWeekly;
 
         const aPhoneLoad = countAssignmentBlocks(a, assignment);
@@ -6339,7 +6364,7 @@ function getProtectedPersonIdsForExactRule(rule, blockIndex, simulationTeam, cov
   return protectedIds;
 }
 
-function chooseManagerSplitRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts) {
+function chooseManagerSplitRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts, previousDayOutNames) {
   const scopedTeam = getRuleScopedTeam(rule.scope, simulationTeam);
   const protectedIds = getProtectedPersonIdsForExactRule(rule, blockIndex, simulationTeam, coverageRules);
   const selected = [];
@@ -6350,6 +6375,7 @@ function chooseManagerSplitRulePeople(rule, blockIndex, simulationTeam, coverage
     const chosen = pickRulePeopleForAssignment(managerTeam, target.count, rule.assignment, blockIndex, {
       balanceManagers: false,
       weeklyPhoneCounts,
+      previousDayOutNames,
       excludePersonIds: [...protectedIds, ...selectedIds],
     });
     chosen.forEach((person) => {
@@ -6364,6 +6390,7 @@ function chooseManagerSplitRulePeople(rule, blockIndex, simulationTeam, coverage
   const extra = pickRulePeopleForAssignment(scopedTeam, rule.count - selected.length, rule.assignment, blockIndex, {
     balanceManagers: true,
     weeklyPhoneCounts,
+    previousDayOutNames,
     excludePersonIds: [...protectedIds, ...selectedIds],
   });
   extra.forEach((person) => {
@@ -6374,9 +6401,9 @@ function chooseManagerSplitRulePeople(rule, blockIndex, simulationTeam, coverage
   return selected;
 }
 
-function chooseExactRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts) {
+function chooseExactRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts, previousDayOutNames) {
   if (rule.managerTargets?.length) {
-    return chooseManagerSplitRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts);
+    return chooseManagerSplitRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts, previousDayOutNames);
   }
 
   const scopedTeam = getRuleScopedTeam(rule.scope, simulationTeam);
@@ -6384,6 +6411,7 @@ function chooseExactRulePeople(rule, blockIndex, simulationTeam, coverageRules, 
   const initial = pickRulePeopleForAssignment(scopedTeam, rule.count, rule.assignment, blockIndex, {
     balanceManagers: true,
     weeklyPhoneCounts,
+    previousDayOutNames,
     excludePersonIds: [...protectedIds],
   });
   if (initial.length >= rule.count || !protectedIds.size) return initial;
@@ -6392,12 +6420,13 @@ function chooseExactRulePeople(rule, blockIndex, simulationTeam, coverageRules, 
   const extra = pickRulePeopleForAssignment(scopedTeam, rule.count - initial.length, rule.assignment, blockIndex, {
     balanceManagers: true,
     weeklyPhoneCounts,
+    previousDayOutNames,
     excludePersonIds: [...chosenIds],
   });
   return [...initial, ...extra].filter((person, index, list) => list.findIndex((entry) => personId(entry) === personId(person)) === index);
 }
 
-function applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, weeklyPhoneCounts, actionMap, orderedKeys, detailLines, reasonPrefix = "reshuffle rule") {
+function applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, weeklyPhoneCounts, previousDayOutNames, actionMap, orderedKeys, detailLines, reasonPrefix = "reshuffle rule") {
   const scopedTeam = getRuleScopedTeam(rule.scope, simulationTeam);
   let touchedChanges = 0;
   let reviewedBlocks = 0;
@@ -6408,8 +6437,9 @@ function applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, week
       ? pickRulePeopleForAssignment(scopedTeam, rule.count, rule.assignment, blockIndex, {
           balanceManagers: true,
           weeklyPhoneCounts,
+          previousDayOutNames,
         })
-      : chooseExactRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts);
+      : chooseExactRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts, previousDayOutNames);
     const chosenIds = new Set(chosen.map((person) => personId(person)));
     const currentAssigned = scopedTeam.filter((person) => person.assignments[blockIndex][0] === rule.assignment);
 
@@ -6564,8 +6594,8 @@ async function buildRuleBasedReshufflePlan() {
     throw new Error("I could not find any usable scheduling targets in the saved rules yet.");
   }
 
-  const shouldUseWeeklyPhoneHistory = allRuleText.some(ruleMentionsPhoneFairness);
-  const weeklyPhoneCounts = shouldUseWeeklyPhoneHistory ? await getWeeklyPhoneHistoryCounts() : {};
+  const phoneHistoryContext = await getLatestPhoneHistoryContext();
+  const weeklyPhoneCounts = phoneHistoryContext.counts;
   const simulationTeam = cloneData(team);
   const actionMap = new Map();
   const orderedKeys = [];
@@ -6574,7 +6604,10 @@ async function buildRuleBasedReshufflePlan() {
   const makeRuleKey = (scope, rule) => `${scope}::${rule}`;
 
   savedRules.forEach((savedRule) => {
-    const matchingCoverageRules = coverageRules.filter((rule) => rule.scope === savedRule.scope && rule.raw === savedRule.rule);
+    const matchingCoverageRules = coverageRules.filter((rule) =>
+      rule.scope === savedRule.scope &&
+      (rule.raw === savedRule.rule || rule.raw.indexOf(savedRule.rule + " [") === 0)
+    );
     ruleResultMap.set(makeRuleKey(savedRule.scope, savedRule.rule), {
       scope: savedRule.scope,
       rule: savedRule.rule,
@@ -6612,6 +6645,7 @@ async function buildRuleBasedReshufflePlan() {
       simulationTeam,
       coverageRules,
       weeklyPhoneCounts,
+      phoneHistoryContext.previousDayOutNames,
       actionMap,
       orderedKeys,
       detailLines,
