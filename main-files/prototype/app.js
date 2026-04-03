@@ -4137,6 +4137,9 @@ function setTheme(theme) {
   try {
     window.localStorage.setItem(getThemePreferenceKey(), document.body.dataset.theme);
   } catch {}
+  if (selectedAgentId && !agentShell.classList.contains("hidden")) {
+    applyAgentPreferences();
+  }
 }
 
 function defaultAgentPreferences() {
@@ -4906,12 +4909,20 @@ function applyAgentPreferences() {
     saveCurrentAgentPreferences({ alertScope: nextScope });
     preferences.alertScope = nextScope;
   }
+  const darkThemeActive = document.body.dataset.theme === "dark";
   agentShell.style.setProperty("--agent-accent", preferences.blockColor);
   agentShell.style.setProperty("--agent-accent-soft", hexToRgba(preferences.blockColor, 0.18));
-  agentShell.style.setProperty("--agent-block-bg", preferences.blockColor);
-  agentShell.style.setProperty("--agent-block-soft", hexToRgba(preferences.blockColor, 0.16));
-  agentShell.style.setProperty("--agent-text", preferences.textColor);
-  agentShell.style.setProperty("--agent-text-soft", hexToRgba(preferences.textColor, 0.72));
+  if (darkThemeActive) {
+    agentShell.style.setProperty("--agent-block-bg", "rgba(16, 23, 33, 0.94)");
+    agentShell.style.setProperty("--agent-block-soft", "rgba(255, 255, 255, 0.06)");
+    agentShell.style.setProperty("--agent-text", "#f3f7fb");
+    agentShell.style.setProperty("--agent-text-soft", "rgba(243, 247, 251, 0.78)");
+  } else {
+    agentShell.style.setProperty("--agent-block-bg", preferences.blockColor);
+    agentShell.style.setProperty("--agent-block-soft", hexToRgba(preferences.blockColor, 0.16));
+    agentShell.style.setProperty("--agent-text", preferences.textColor);
+    agentShell.style.setProperty("--agent-text-soft", hexToRgba(preferences.textColor, 0.72));
+  }
   if (preferences.image) {
     agentShell.classList.add("has-custom-bg");
     agentShell.style.backgroundImage = `linear-gradient(rgba(255,255,255,0.08), rgba(255,255,255,0.08)), url('${preferences.image}')`;
