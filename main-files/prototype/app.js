@@ -5188,7 +5188,10 @@ function answerWhenPersonOnMod(text) {
 
 function personHasSkill(person, assignment) {
   if (assignment === "Both Queues") {
-    return (person.skills || []).includes("School Support Queue") && (person.skills || []).includes("FST Queue");
+    return (person.skills || []).includes("Both Queues") || (
+      (person.skills || []).includes("School Support Queue") &&
+      (person.skills || []).includes("FST Queue")
+    );
   }
   if (!editableSkillAssignments.includes(assignment)) return true;
   return (person.skills || []).includes(assignment);
@@ -5975,6 +5978,19 @@ function ruleMentionsPhoneFairness(ruleText) {
   ]);
 }
 
+function extractManagerPhoneTargets(ruleText) {
+  const cleaned = String(ruleText || "");
+  const matches = [...cleaned.matchAll(/(\d+)\s+people\s+from\s+([A-Za-z]+)(?:'s)?(?:\s+team)?\s+on\s+phones/gi)];
+  if (!matches.length) return [];
+
+  return matches
+    .map((match) => ({
+      manager: formatManagerName(match[2]),
+      count: Number.parseInt(match[1], 10),
+    }))
+    .filter((entry) => entry.manager && Number.isFinite(entry.count) && entry.count > 0);
+}
+
 function parseCoverageRules(ruleText, scope) {
   const cleaned = String(ruleText || "").trim();
   if (!cleaned) return [];
@@ -5984,6 +6000,7 @@ function parseCoverageRules(ruleText, scope) {
   if (!assignment || !count) return [];
 
   const minimumOnly = isMinimumCoverageRule(cleaned);
+  const managerTargets = assignment === "Tier 2 Phones" ? extractManagerPhoneTargets(cleaned) : [];
   const exactPhoneOutsideRule =
     assignment === "Tier 2 Phones" &&
     !minimumOnly &&
@@ -6022,10 +6039,11 @@ function parseCoverageRules(ruleText, scope) {
     {
       scope,
       assignment,
-      count,
+      count: managerTargets.length ? managerTargets.reduce((sum, entry) => sum + entry.count, 0) : count,
       minimumOnly,
       blockIndexes: parseRuleBlockIndexes(cleaned),
       raw: cleaned,
+      managerTargets,
     },
   ];
 }
@@ -6228,7 +6246,46 @@ function getProtectedPersonIdsForExactRule(rule, blockIndex, simulationTeam, cov
   return protectedIds;
 }
 
+function chooseManagerSplitRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts) {
+  const scopedTeam = getRuleScopedTeam(rule.scope, simulationTeam);
+  const protectedIds = getProtectedPersonIdsForExactRule(rule, blockIndex, simulationTeam, coverageRules);
+  const selected = [];
+  const selectedIds = new Set();
+
+  (rule.managerTargets || []).forEach((target) => {
+    const managerTeam = scopedTeam.filter((person) => formatManagerName(person.manager) === target.manager);
+    const chosen = pickRulePeopleForAssignment(managerTeam, target.count, rule.assignment, blockIndex, {
+      balanceManagers: false,
+      weeklyPhoneCounts,
+      excludePersonIds: [...protectedIds, ...selectedIds],
+    });
+    chosen.forEach((person) => {
+      if (selectedIds.has(personId(person))) return;
+      selected.push(person);
+      selectedIds.add(personId(person));
+    });
+  });
+
+  if (selected.length >= rule.count || !protectedIds.size) return selected;
+
+  const extra = pickRulePeopleForAssignment(scopedTeam, rule.count - selected.length, rule.assignment, blockIndex, {
+    balanceManagers: true,
+    weeklyPhoneCounts,
+    excludePersonIds: [...protectedIds, ...selectedIds],
+  });
+  extra.forEach((person) => {
+    if (selectedIds.has(personId(person))) return;
+    selected.push(person);
+    selectedIds.add(personId(person));
+  });
+  return selected;
+}
+
 function chooseExactRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts) {
+  if (rule.managerTargets?.length) {
+    return chooseManagerSplitRulePeople(rule, blockIndex, simulationTeam, coverageRules, weeklyPhoneCounts);
+  }
+
   const scopedTeam = getRuleScopedTeam(rule.scope, simulationTeam);
   const protectedIds = getProtectedPersonIdsForExactRule(rule, blockIndex, simulationTeam, coverageRules);
   const initial = pickRulePeopleForAssignment(scopedTeam, rule.count, rule.assignment, blockIndex, {
@@ -6263,7 +6320,7 @@ function applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, week
     const chosenIds = new Set(chosen.map((person) => personId(person)));
     const currentAssigned = scopedTeam.filter((person) => person.assignments[blockIndex][0] === rule.assignment);
 
-    if (!rule.minimumOnly && currentAssigned.length > rule.count) {
+    if (!rule.minimumOnly) {
       currentAssigned
         .filter((person) => !chosenIds.has(personId(person)))
         .forEach((person) => {
@@ -6297,7 +6354,10 @@ function applyCoverageRuleToSimulation(rule, simulationTeam, coverageRules, week
     });
 
     const names = chosen.map((person) => person.name).join(", ") || "no available staff";
-    detailLines.push(`${getSchedulingScopeLabel(rule.scope)} • ${formatBlockLabel(blockIndex)} • ${rule.assignment}: ${names}`);
+    const managerSummary = rule.managerTargets?.length
+      ? ` [${rule.managerTargets.map((target) => `${target.manager} ${target.count}`).join(', ')}]`
+      : "";
+    detailLines.push(`${getSchedulingScopeLabel(rule.scope)} • ${formatBlockLabel(blockIndex)} • ${rule.assignment}${managerSummary}: ${names}`);
   });
 
   return {
@@ -7587,6 +7647,10 @@ function renderSkillsMatrix(filteredTeam = getSkillsMatrixTeam()) {
       person.skills = person.skills || [];
       if (event.target.checked) {
         if (!person.skills.includes(skill)) person.skills.push(skill);
+        if (skill === "Both Queues") {
+          if (!person.skills.includes("School Support Queue")) person.skills.push("School Support Queue");
+          if (!person.skills.includes("FST Queue")) person.skills.push("FST Queue");
+        }
       } else {
         person.skills = person.skills.filter((entry) => entry !== skill);
       }
