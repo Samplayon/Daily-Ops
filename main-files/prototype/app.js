@@ -2398,6 +2398,7 @@ let archiveSyncTimer = null;
 let lastArchiveSyncSignature = "";
 let archivePreviewContent = {};
 let archivePreviewRows = [];
+let automationPreferencesState = null;
 let notificationCheckTimer = null;
 let notificationAudioContext = null;
 let editableSkillAssignments = [...baseEditableSkillAssignments];
@@ -4186,33 +4187,38 @@ function saveCurrentAgentPreferences(partial) {
   });
 }
 
-function loadAutomationPreferences() {
-  try {
-    const raw = window.localStorage.getItem(getAutomationPreferenceKey());
-    const parsed = raw ? JSON.parse(raw) : {};
-    return automationDefinitions.map((automation) => ({
-      ...automation,
-      enabled: parsed[automation.id]?.enabled ?? false,
-      time: parsed[automation.id]?.time ?? automation.time ?? "00:00",
-    }));
-  } catch {
-    return automationDefinitions.map((automation) => ({
-      ...automation,
-      enabled: false,
-      time: automation.time ?? "00:00",
-    }));
-  }
+function defaultAutomationPreferences() {
+  return automationDefinitions.map((automation) => ({
+    ...automation,
+    enabled: false,
+    time: automation.time ?? "00:00",
+  }));
 }
 
-function saveAutomationPreferences(nextAutomations) {
-  const payload = nextAutomations.reduce((result, automation) => {
+function normalizeAutomationPreferences(payload = null) {
+  return automationDefinitions.map((automation) => ({
+    ...automation,
+    enabled: Boolean(payload?.[automation.id]?.enabled),
+    time: payload?.[automation.id]?.time ?? automation.time ?? "00:00",
+  }));
+}
+
+function buildAutomationPreferencesPayload(automations = loadAutomationPreferences()) {
+  return automations.reduce((result, automation) => {
     result[automation.id] = {
       enabled: Boolean(automation.enabled),
       time: automation.time ?? "00:00",
     };
     return result;
   }, {});
-  window.localStorage.setItem(getAutomationPreferenceKey(), JSON.stringify(payload));
+}
+
+function loadAutomationPreferences() {
+  return automationPreferencesState ? automationPreferencesState.map((entry) => ({ ...entry })) : defaultAutomationPreferences();
+}
+
+function saveAutomationPreferences(nextAutomations) {
+  automationPreferencesState = normalizeAutomationPreferences(buildAutomationPreferencesPayload(nextAutomations));
 }
 
 function updateAutomationSettings(automationId, updates) {
@@ -4681,9 +4687,11 @@ async function refreshArchiveLibrary() {
       selectedArchiveName = archiveLibrary.archives[0]?.name || "";
     }
     archivePreviewContent = {};
+    automationPreferencesState = normalizeAutomationPreferences(payload.settings?.automations);
+    const nightlyAutomation = automationPreferencesState.find((entry) => entry.id === "nightly-pdf-archive");
     archiveStatus = {
-      enabled: Boolean(payload.settings?.enabled),
-      time: payload.settings?.time || "00:00",
+      enabled: Boolean(nightlyAutomation?.enabled ?? payload.settings?.enabled),
+      time: nightlyAutomation?.time || payload.settings?.time || "00:00",
       lastArchivedDate: payload.settings?.lastArchivedDate || "",
       lastArchivedAt: payload.settings?.lastArchivedAt || "",
       nextRun: payload.settings?.nextRun || "",
@@ -4694,6 +4702,7 @@ async function refreshArchiveLibrary() {
       archives: [],
     };
     selectedArchiveName = "";
+    automationPreferencesState = normalizeAutomationPreferences();
     archiveStatus = {
       enabled: false,
       time: archiveStatus.time || "00:00",
@@ -4706,14 +4715,16 @@ async function refreshArchiveLibrary() {
 
 async function saveArchiveConfig(partial = {}) {
   if (!backendAvailable) return;
+  const nightlyAutomation = loadAutomationPreferences().find((entry) => entry.id === "nightly-pdf-archive");
   const response = await fetch("/api/archives/config", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      enabled: partial.enabled ?? archiveStatus.enabled,
-      time: partial.time ?? archiveStatus.time,
+      enabled: partial.enabled ?? nightlyAutomation?.enabled ?? archiveStatus.enabled,
+      time: partial.time ?? nightlyAutomation?.time ?? archiveStatus.time,
+      automations: buildAutomationPreferencesPayload(),
     }),
   });
   const payload = await response.json();

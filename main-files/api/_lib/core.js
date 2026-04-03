@@ -87,12 +87,46 @@ function extractOutputText(responseJson) {
   throw new Error("OpenAI response did not include parsable text output.");
 }
 
+function defaultArchiveAutomationPreferences() {
+  return {
+    "rule-based-reshuffle": {
+      enabled: false,
+      time: "00:00",
+    },
+    "nightly-pdf-archive": {
+      enabled: false,
+      time: "00:00",
+    },
+  };
+}
+
+function normalizeArchiveAutomationPreferences(payload) {
+  const defaults = defaultArchiveAutomationPreferences();
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return defaults;
+  }
+
+  return Object.fromEntries(
+    Object.entries(defaults).map(([automationId, definition]) => {
+      const entry = payload[automationId] || {};
+      return [
+        automationId,
+        {
+          enabled: Boolean(entry.enabled),
+          time: String(entry.time || definition.time || "00:00"),
+        },
+      ];
+    })
+  );
+}
+
 function defaultArchiveSettings() {
   return {
     enabled: false,
     time: "00:00",
     lastArchivedDate: "",
     lastArchivedAt: "",
+    automations: defaultArchiveAutomationPreferences(),
   };
 }
 
@@ -220,10 +254,12 @@ async function listObjects(prefix = "") {
 async function readArchiveSettings() {
   try {
     const { body } = await downloadObject(ARCHIVE_SETTINGS_OBJECT);
-    return {
+    const parsed = {
       ...defaultArchiveSettings(),
       ...JSON.parse(body.toString("utf8") || "{}"),
     };
+    parsed.automations = normalizeArchiveAutomationPreferences(parsed.automations);
+    return parsed;
   } catch {
     return defaultArchiveSettings();
   }
@@ -231,6 +267,7 @@ async function readArchiveSettings() {
 
 async function writeArchiveSettings(settings) {
   const merged = { ...defaultArchiveSettings(), ...(settings || {}) };
+  merged.automations = normalizeArchiveAutomationPreferences(merged.automations);
   await uploadObject(
     ARCHIVE_SETTINGS_OBJECT,
     "application/json; charset=utf-8",
@@ -522,6 +559,7 @@ async function getArchiveStatus() {
       lastArchivedDate: settings.lastArchivedDate || "",
       lastArchivedAt: settings.lastArchivedAt || "",
       nextRun: nextRun.toISOString(),
+      automations: normalizeArchiveAutomationPreferences(settings.automations),
     },
   };
 }
@@ -621,6 +659,7 @@ module.exports = {
   archiveSnapshotForDate,
   callOpenAIPlan,
   defaultAdminPasswords,
+  defaultArchiveAutomationPreferences,
   defaultArchiveSettings,
   downloadObject,
   getArchiveStatus,
