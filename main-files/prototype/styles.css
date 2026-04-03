@@ -160,6 +160,154 @@ body[data-theme="dark"] .out-only-card {
   background: rgba(255, 255, 255, 0.04);
 }
 
+body[data-theme="dark"] #admin-shell .nested-panel,
+body[data-theme="dark"] #admin-shell .time-section,
+body[data-theme="dark"] #admin-shell .shift-edit-panel,
+body[data-theme="dark"] #admin-shell .shift-editor-card,
+body[data-theme="dark"] #admin-shell .skills-wrap,
+body[data-theme="dark"] #admin-shell .archive-preview,
+body[data-theme="dark"] #admin-shell .archive-preview-table-wrap,
+body[data-theme="dark"] #admin-shell .archive-row,
+body[data-theme="dark"] #admin-shell .toggle,
+body[data-theme="dark"] #admin-shell .shift-scope-option {
+  background: rgba(16, 23, 33, 0.94);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+body[data-theme="dark"] #admin-shell .time-header,
+body[data-theme="dark"] #admin-shell .archive-preview-table th,
+body[data-theme="dark"] #admin-shell .skills-table th {
+  background: linear-gradient(135deg, rgba(0, 201, 210, 0.12), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] #admin-shell .assignment-row,
+body[data-theme="dark"] #admin-shell .skills-table td,
+body[data-theme="dark"] #admin-shell .skills-table th,
+body[data-theme="dark"] #admin-shell .archive-preview-table td,
+body[data-theme="dark"] #admin-shell .archive-preview-table th,
+body[data-theme="dark"] #admin-shell .agent-day-list {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] #admin-shell .assignment-row:hover {
+  background: rgba(0, 201, 210, 0.08);
+}
+
+body[data-theme="dark"] #admin-shell .time-header h3,
+body[data-theme="dark"] #admin-shell .person-name,
+body[data-theme="dark"] #admin-shell .assignment-manager-name,
+body[data-theme="dark"] #admin-shell .rule-label,
+body[data-theme="dark"] #admin-shell .shift-search-field span,
+body[data-theme="dark"] #admin-shell .automation-settings span,
+body[data-theme="dark"] #admin-shell .assignment-manager-fixed,
+body[data-theme="dark"] #admin-shell .toggle span,
+body[data-theme="dark"] #admin-shell .time-count,
+body[data-theme="dark"] #admin-shell .empty-state,
+body[data-theme="dark"] #admin-shell .person-meta,
+body[data-theme="dark"] #admin-shell .skills-role,
+body[data-theme="dark"] #admin-shell .archive-meta,
+body[data-theme="dark"] #admin-shell .archive-preview-meta,
+body[data-theme="dark"] #admin-shell .automation-copy p,
+body[data-theme="dark"] #admin-shell .automation-test-note,
+body[data-theme="dark"] #admin-shell .rules-scope-copy,
+body[data-theme="dark"] #admin-shell .automation-cloud-note,
+body[data-theme="dark"] #admin-shell .reshuffle-report-empty,
+body[data-theme="dark"] #admin-shell .reshuffle-report-stat span {
+  color: var(--muted);
+}
+
+body[data-theme="dark"] #admin-shell .schedule-badge {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+body[data-theme="dark"] #admin-shell .assignment-chip.out {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--ink);
+}
+
+body[data-theme="dark"] #admin-shell .assignment-chip.open {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+}
+
+body[data-theme="dark"] #agent-shell {
+  --agent-block-bg: rgba(16, 23, 33, 0.94);
+  --agent-block-soft: rgba(255, 255, 255, 0.06);
+  --agent-text: #f3f7fb;
+  --agent-text-soft: #aeb8c6;
+  background:
+    radial-gradient(circle at top left, rgba(0, 201, 210, 0.12), transparent 24%),
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.05), transparent 22%),
+    linear-gradient(180deg, #071018 0%, #0b1118 100%);
+}
+
+body[data-theme="dark"] #agent-shell .hero-copy,
+body[data-theme="dark"] #agent-shell .panel,
+body[data-theme="dark"] #agent-shell .agent-day-details,
+body[data-theme="dark"] #agent-shell .agent-now-card,
+body[data-theme="dark"] #agent-shell .agent-mod-card {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] #agent-shell .hero-card {
+  background:
+    linear-gradient(135deg, rgba(5, 8, 13, 0.96), rgba(20, 29, 40, 0.96)),
+    rgba(16, 23, 33, 0.94);
+  color: #f3f7fb;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] #agent-shell .hero-stat {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+body[data-theme="dark"] #agent-shell .agent-day-list,
+body[data-theme="dark"] #agent-shell .agent-day-row {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] #agent-shell .agent-day-row {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body[data-theme="dark"] #agent-shell .agent-now-assignment,
+body[data-theme="dark"] #agent-shell .assignment-chip {
+  background: color-mix(in srgb, var(--agent-accent, #00c9d2) 24%, rgba(255, 255, 255, 0.06) 76%);
+  color: var(--agent-text);
+  border-color: color-mix(in srgb, var(--agent-accent, #00c9d2) 30%, rgba(255, 255, 255, 0.08) 70%);
+}
+
+body[data-theme="dark"] #agent-shell .schedule-badge,
+body[data-theme="dark"] #agent-shell .secondary-button {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--agent-text);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+body[data-theme="dark"] #agent-shell .agent-alert-status,
+body[data-theme="dark"] #agent-shell .portal-input,
+body[data-theme="dark"] #agent-shell select,
+body[data-theme="dark"] #agent-shell .color-picker,
+body[data-theme="dark"] #agent-shell .toggle {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--agent-text);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+body[data-theme="dark"] #agent-shell .toggle span,
+body[data-theme="dark"] #agent-shell .panel-header h2,
+body[data-theme="dark"] #agent-shell .panel-header p,
+body[data-theme="dark"] #agent-shell .person-meta,
+body[data-theme="dark"] #agent-shell .time-subtitle,
+body[data-theme="dark"] #agent-shell .time-count,
+body[data-theme="dark"] #agent-shell .stat-label,
+body[data-theme="dark"] #agent-shell .agent-day-row .person-meta {
+  color: var(--agent-text-soft);
+}
+
 .portal-title {
   margin-top: 10px;
   font-size: clamp(2rem, 4vw, 3.2rem);
@@ -2399,4 +2547,17 @@ select {
   padding-left: 20px;
   display: grid;
   gap: 8px;
+}
+
+body[data-theme="dark"] #admin-shell .panel-header h2,
+body[data-theme="dark"] #admin-shell .reshuffle-report-summary,
+body[data-theme="dark"] #admin-shell .reshuffle-report-stat strong {
+  color: var(--ink);
+}
+
+body[data-theme="dark"] #agent-shell .panel-header h2,
+body[data-theme="dark"] #agent-shell .hero-stat strong,
+body[data-theme="dark"] #agent-shell .assignment-chip.out,
+body[data-theme="dark"] #agent-shell .agent-mod-name {
+  color: var(--agent-text);
 }
