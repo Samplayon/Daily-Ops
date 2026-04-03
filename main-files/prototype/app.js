@@ -5731,6 +5731,75 @@ function summarizePlanForChat(plan) {
   return parts.join(" ");
 }
 
+function isEveryoneAssignmentRequest(text) {
+  const normalized = normalizeText(text);
+  const assignment = findAssignmentFromText(text);
+  if (!assignment) return false;
+
+  return containsAny(normalized, [
+    "everyone",
+    "everybody",
+    "all available",
+    "all qualified",
+    "everyone qualified",
+    "everyone available",
+    "entire team",
+    "whole team",
+  ]);
+}
+
+function buildEveryoneAssignmentPlan(text) {
+  if (!isEveryoneAssignmentRequest(text)) return null;
+
+  const assignment = findAssignmentFromText(text);
+  const blockIndexes = parseTimeRange(text) || getAllBlockIndexes();
+  if (!assignment || !blockIndexes?.length) return null;
+
+  const scopedTeam = getAssistantScopedTeam();
+  const eligiblePeople = scopedTeam.filter((person) =>
+    blockIndexes.some((blockIndex) =>
+      personWorksBlock(person, blockIndex) && !personIsOut(person) && personHasSkill(person, assignment)
+    )
+  );
+
+  if (!eligiblePeople.length) {
+    return { error: `I could not find anyone qualified for ${assignment} in that time range.` };
+  }
+
+  const actions = [];
+  const detailLines = [];
+
+  blockIndexes.forEach((blockIndex) => {
+    const assignedThisBlock = eligiblePeople.filter(
+      (person) => personWorksBlock(person, blockIndex) && !personIsOut(person) && personHasSkill(person, assignment)
+    );
+
+    assignedThisBlock.forEach((person) => {
+      if (person.assignments[blockIndex][0] === assignment) return;
+      actions.push({
+        type: "set_assignment_block",
+        personId: personId(person),
+        personName: person.name,
+        assignment,
+        blockIndex,
+        previousAssignment: person.assignments[blockIndex][0],
+        reason: `assigning all qualified people to ${assignment}`,
+      });
+    });
+
+    detailLines.push(`${formatBlockLabel(blockIndex)}: ${assignedThisBlock.map((person) => person.name).join(", ") || "no qualified staff available"}`);
+  });
+
+  return {
+    title: `Assign everyone to ${assignment}`,
+    summary: `I drafted ${assignment} for all qualified people across ${blockIndexes.map(formatBlockLabel).join(", ")}.`,
+    scope: blockIndexes.length > 1 ? "Multi-block update" : "Single block update",
+    actions,
+    assistantText: `I prepared a plan that puts every qualified person on ${assignment} for the requested time range. Review it before applying.`,
+    details: detailLines,
+  };
+}
+
 function buildCoveragePlan(text) {
   const normalized = normalizeText(text);
   if (!isCoverageChangeRequest(text)) return null;
@@ -7050,6 +7119,9 @@ function buildPlanFromCommand(text) {
 
   const trainingPlan = buildTrainingCoveragePlan(text);
   if (trainingPlan) plans.push(trainingPlan);
+
+  const everyoneAssignmentPlan = buildEveryoneAssignmentPlan(text);
+  if (everyoneAssignmentPlan) plans.push(everyoneAssignmentPlan);
 
   const coveragePlan = buildCoveragePlan(text);
   if (coveragePlan) plans.push(coveragePlan);
