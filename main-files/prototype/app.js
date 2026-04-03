@@ -2430,6 +2430,7 @@ let assistantManagerMode = "all";
 let editingBoardRow = null;
 let editingShiftPersonId = null;
 let shiftSearchTerm = "";
+let schedulingRuleBuilderType = "exact-coverage";
 let blockLayout = {
   baseSize: 1,
   focus: null,
@@ -4327,6 +4328,144 @@ function getSchedulingScopeLabel(scope) {
   return scope === "support" ? "Support" : scope === "aco" ? "ACO" : "All";
 }
 
+function encodeRuleHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function getRuleGeneratorAssignmentOptions(selectedAssignment = "Tier 2 Phones") {
+  return editableSkillAssignments
+    .map((assignment) => `<option value="${encodeRuleHtml(assignment)}" ${assignment === selectedAssignment ? "selected" : ""}>${encodeRuleHtml(assignment)}</option>`)
+    .join("");
+}
+
+function getRuleGeneratorFieldsHtml() {
+  if (schedulingRuleBuilderType === "minimum-coverage") {
+    return `
+      <label>
+        <span>Assignment</span>
+        <select id="rule-builder-assignment" class="portal-input">
+          ${getRuleGeneratorAssignmentOptions("Disputes")}
+        </select>
+      </label>
+      <label>
+        <span>Minimum people</span>
+        <input id="rule-builder-count" type="number" min="1" step="1" class="portal-input" value="2" />
+      </label>
+    `;
+  }
+
+  if (schedulingRuleBuilderType === "queue-routing") {
+    return `
+      <div class="rule-builder-note">
+        This builds the supported queue-skill routing rule for <strong>School Support Queue</strong>, <strong>FST Queue</strong>, and <strong>Both Queues</strong>.
+      </div>
+    `;
+  }
+
+  if (schedulingRuleBuilderType === "manager-phone-split") {
+    return `
+      <label>
+        <span>Manager 1</span>
+        <input id="rule-builder-manager-a" type="text" class="portal-input" placeholder="Erik" value="Erik" />
+      </label>
+      <label>
+        <span>Manager 1 phone count</span>
+        <input id="rule-builder-count-a" type="number" min="1" step="1" class="portal-input" value="2" />
+      </label>
+      <label>
+        <span>Manager 2</span>
+        <input id="rule-builder-manager-b" type="text" class="portal-input" placeholder="Rachel" value="Rachel" />
+      </label>
+      <label>
+        <span>Manager 2 phone count</span>
+        <input id="rule-builder-count-b" type="number" min="1" step="1" class="portal-input" value="2" />
+      </label>
+    `;
+  }
+
+  return `
+    <label>
+      <span>Assignment</span>
+      <select id="rule-builder-assignment" class="portal-input">
+        ${getRuleGeneratorAssignmentOptions("Tier 2 Phones")}
+      </select>
+    </label>
+    <label>
+      <span>Exact people</span>
+      <input id="rule-builder-count" type="number" min="1" step="1" class="portal-input" value="5" />
+    </label>
+    <label>
+      <span>Time range</span>
+      <input id="rule-builder-range" type="text" class="portal-input" placeholder="11a-7p or leave blank for all day" value="11a-7p" />
+    </label>
+    <label>
+      <span>Outside range count</span>
+      <input id="rule-builder-outside-count" type="number" min="1" step="1" class="portal-input" placeholder="Optional" value="3" />
+    </label>
+  `;
+}
+
+function buildGeneratedSchedulingRule(builderType) {
+  if (builderType === "minimum-coverage") {
+    const assignment = schedulingRulesCard.querySelector('#rule-builder-assignment')?.value || '';
+    const count = Number.parseInt(schedulingRulesCard.querySelector('#rule-builder-count')?.value || '', 10);
+    if (!assignment || !Number.isFinite(count) || count < 1) {
+      return { error: 'Pick an assignment and minimum count first.' };
+    }
+    return {
+      rule: `When creating the schedule, keep at least ${count} people on ${assignment} at all times if staffing and skill availability allow. If there are not enough qualified people available in a block, fill as much ${assignment} coverage as possible.`,
+    };
+  }
+
+  if (builderType === "queue-routing") {
+    return {
+      rule: "When creating the schedule, if someone has both the School Support Queue skill and the FST Queue skill, they should be assigned to the Both Queues assignment. If someone only has the FST Queue skill, they should be scheduled for the FST Queue assignment. If someone only has the School Support Queue skill, they should be scheduled for the School Support Queue assignment.",
+    };
+  }
+
+  if (builderType === "manager-phone-split") {
+    const managerA = (schedulingRulesCard.querySelector('#rule-builder-manager-a')?.value || '').trim();
+    const managerB = (schedulingRulesCard.querySelector('#rule-builder-manager-b')?.value || '').trim();
+    const countA = Number.parseInt(schedulingRulesCard.querySelector('#rule-builder-count-a')?.value || '', 10);
+    const countB = Number.parseInt(schedulingRulesCard.querySelector('#rule-builder-count-b')?.value || '', 10);
+    if (!managerA || !managerB || !Number.isFinite(countA) || !Number.isFinite(countB) || countA < 1 || countB < 1) {
+      return { error: 'Enter both manager names and both phone counts first.' };
+    }
+    return {
+      rule: `${countA} people from ${managerA}'s team on phones each hour, ${countB} people from ${managerB}'s team on phones each hour. So a total of ${countA + countB} people each hour.`,
+    };
+  }
+
+  const assignment = schedulingRulesCard.querySelector('#rule-builder-assignment')?.value || '';
+  const count = Number.parseInt(schedulingRulesCard.querySelector('#rule-builder-count')?.value || '', 10);
+  const range = (schedulingRulesCard.querySelector('#rule-builder-range')?.value || '').trim();
+  const outsideCount = Number.parseInt(schedulingRulesCard.querySelector('#rule-builder-outside-count')?.value || '', 10);
+
+  if (!assignment || !Number.isFinite(count) || count < 1) {
+    return { error: 'Pick an assignment and exact count first.' };
+  }
+
+  if (range && Number.isFinite(outsideCount) && outsideCount > 0) {
+    return {
+      rule: `When creating the schedule, keep exactly ${count} people on ${assignment} from ${range}. Outside of ${range}, keep exactly ${outsideCount} people on ${assignment}.`,
+    };
+  }
+
+  if (range) {
+    return {
+      rule: `When creating the schedule, keep exactly ${count} people on ${assignment} from ${range}.`,
+    };
+  }
+
+  return {
+    rule: `When creating the schedule, keep exactly ${count} people on ${assignment} at all times.`,
+  };
+}
+
 function renderSchedulingRules() {
   if (!schedulingRulesCard) return;
 
@@ -4358,35 +4497,64 @@ function renderSchedulingRules() {
               : "ACO team members"
         }.
       </div>
-      <div class="rules-list">
-        ${rules
-          .map(
-            (rule, index) => `
-              <div class="rule-row">
-                <label class="rule-label" for="rule-input-${activeSchedulingRuleScope}-${index}">${getSchedulingScopeLabel(activeSchedulingRuleScope)} Rule ${index + 1}</label>
-                <div class="rule-input-row">
-                  <input
-                    id="rule-input-${activeSchedulingRuleScope}-${index}"
-                    type="text"
-                    class="portal-input rule-input"
-                    value="${rule.replace(/"/g, "&quot;")}"
-                    placeholder="Example: Only assign people to skills they have"
-                    data-rule-index="${index}"
-                  />
-                  ${
-                    rules.length > 1
-                      ? `<button type="button" class="secondary-button rule-remove-button" data-rule-remove="${index}">Remove</button>`
-                      : ""
-                  }
+      <div class="rule-builder-card">
+        <div class="rule-builder-header">
+          <div>
+            <h3>Rule Generator</h3>
+            <p>Use the generator first. It creates rule wording the scheduler already knows how to follow.</p>
+          </div>
+          <span class="panel-badge">Recommended</span>
+        </div>
+        <div class="rule-builder-grid">
+          <label class="automation-settings-wide">
+            <span>Rule type</span>
+            <select id="rule-builder-type" class="portal-input">
+              <option value="exact-coverage" ${schedulingRuleBuilderType === "exact-coverage" ? "selected" : ""}>Exact coverage target</option>
+              <option value="minimum-coverage" ${schedulingRuleBuilderType === "minimum-coverage" ? "selected" : ""}>Minimum coverage</option>
+              <option value="queue-routing" ${schedulingRuleBuilderType === "queue-routing" ? "selected" : ""}>Queue routing by skill</option>
+              <option value="manager-phone-split" ${schedulingRuleBuilderType === "manager-phone-split" ? "selected" : ""}>Manager phone split</option>
+            </select>
+          </label>
+          ${getRuleGeneratorFieldsHtml()}
+        </div>
+        <div class="rule-builder-actions">
+          <button type="button" class="secondary-button" id="generate-scheduling-rule">Generate & Add Rule</button>
+          <div id="rule-builder-feedback" class="rule-builder-feedback">This adds a scheduler-ready rule to the current ${getSchedulingScopeLabel(activeSchedulingRuleScope)} section.</div>
+        </div>
+      </div>
+      <details class="rules-manual-editor">
+        <summary class="rules-manual-summary">Advanced manual rule editor</summary>
+        <p class="rules-manual-copy">Use this only if the generator cannot express what you need yet. Free-form rules are less reliable than generated ones.</p>
+        <div class="rules-list">
+          ${rules
+            .map(
+              (rule, index) => `
+                <div class="rule-row">
+                  <label class="rule-label" for="rule-input-${activeSchedulingRuleScope}-${index}">${getSchedulingScopeLabel(activeSchedulingRuleScope)} Rule ${index + 1}</label>
+                  <div class="rule-input-row">
+                    <input
+                      id="rule-input-${activeSchedulingRuleScope}-${index}"
+                      type="text"
+                      class="portal-input rule-input"
+                      value="${encodeRuleHtml(rule)}"
+                      placeholder="Example: Only assign people to skills they have"
+                      data-rule-index="${index}"
+                    />
+                    ${
+                      rules.length > 1
+                        ? `<button type="button" class="secondary-button rule-remove-button" data-rule-remove="${index}">Remove</button>`
+                        : ""
+                    }
+                  </div>
                 </div>
-              </div>
-            `
-          )
-          .join("")}
-      </div>
-      <div class="rules-actions">
-        <button type="button" class="secondary-button" id="add-scheduling-rule">Add More Rules</button>
-      </div>
+              `
+            )
+            .join("")}
+        </div>
+        <div class="rules-actions">
+          <button type="button" class="secondary-button" id="add-scheduling-rule">Add Manual Rule</button>
+        </div>
+      </details>
     </div>
   `;
 
@@ -4395,6 +4563,34 @@ function renderSchedulingRules() {
       activeSchedulingRuleScope = button.dataset.ruleScope || "all";
       renderSchedulingRules();
     });
+  });
+
+  schedulingRulesCard.querySelector('#rule-builder-type')?.addEventListener('change', (event) => {
+    schedulingRuleBuilderType = event.target.value || 'exact-coverage';
+    renderSchedulingRules();
+  });
+
+  schedulingRulesCard.querySelector('#generate-scheduling-rule')?.addEventListener('click', () => {
+    const feedback = schedulingRulesCard.querySelector('#rule-builder-feedback');
+    const generated = buildGeneratedSchedulingRule(schedulingRuleBuilderType);
+    if (!generated.rule) {
+      if (feedback) feedback.textContent = generated.error || 'Finish the generator fields first.';
+      return;
+    }
+
+    const nextRuleGroups = loadSchedulingRules();
+    const nextRules = normalizeSchedulingRuleList(nextRuleGroups[activeSchedulingRuleScope]);
+    if (nextRules.length === 1 && !String(nextRules[0] || '').trim()) {
+      nextRules[0] = generated.rule;
+    } else {
+      nextRules.push(generated.rule);
+    }
+    nextRuleGroups[activeSchedulingRuleScope] = nextRules;
+    const savedRules = saveSchedulingRules(nextRuleGroups);
+    void persistSchedulingRules(savedRules);
+    renderSchedulingRules();
+    const nextFeedback = schedulingRulesCard.querySelector('#rule-builder-feedback');
+    if (nextFeedback) nextFeedback.textContent = `Added a ${getSchedulingScopeLabel(activeSchedulingRuleScope)} rule using the generator.`;
   });
 
   schedulingRulesCard.querySelectorAll("[data-rule-index]").forEach((input) => {
@@ -6337,7 +6533,14 @@ function pickRulePeopleForAssignment(teamData, targetCount, assignment, blockInd
 
 function ruleMentionsQueueRouting(ruleText) {
   const normalized = normalizeText(ruleText || "");
-  return normalized.includes("both queues") && normalized.includes("fst") && normalized.includes("school support");
+  const mentionsBothQueues = normalized.includes("both queues");
+  const mentionsQueuePair = normalized.includes("fst") && normalized.includes("school support");
+  const mentionsAssignmentBySkill =
+    mentionsBothQueues &&
+    containsAny(normalized, ["assigned", "assignment", "schedule", "scheduled"]) &&
+    normalized.includes("skill");
+
+  return mentionsQueuePair || mentionsAssignmentBySkill;
 }
 
 function getQueueAssignmentForPerson(person) {

@@ -1402,6 +1402,130 @@ select {
   justify-content: flex-start;
 }
 
+.rule-builder-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 2px solid rgba(0, 201, 210, 0.22);
+  background: linear-gradient(180deg, rgba(227, 250, 252, 0.92), rgba(255, 255, 255, 0.9));
+}
+
+.rule-builder-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.rule-builder-header h3 {
+  margin: 0 0 6px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.08rem;
+}
+
+.rule-builder-header p,
+.rule-builder-feedback,
+.rule-builder-note,
+.rules-manual-copy {
+  margin: 0;
+  color: var(--muted);
+}
+
+.rule-builder-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.rule-builder-grid label {
+  display: grid;
+  gap: 8px;
+}
+
+.rule-builder-grid span {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.rule-builder-note {
+  grid-column: 1 / -1;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 2px dashed rgba(5, 8, 13, 0.12);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.rule-builder-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.rules-manual-editor {
+  border-radius: 20px;
+  border: 2px solid rgba(5, 8, 13, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 16px 18px;
+}
+
+.rules-manual-summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ink);
+  list-style: none;
+}
+
+.rules-manual-summary::-webkit-details-marker {
+  display: none;
+}
+
+.rules-manual-summary::after {
+  content: "+";
+  float: right;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.rules-manual-editor[open] .rules-manual-summary::after {
+  content: "-";
+}
+
+.rules-manual-editor[open] .rules-manual-copy {
+  margin-top: 10px;
+  margin-bottom: 14px;
+}
+
+body.dark-mode .rule-builder-card {
+  border-color: rgba(86, 214, 220, 0.22);
+  background: linear-gradient(180deg, rgba(17, 25, 37, 0.95), rgba(11, 18, 32, 0.95));
+}
+
+body.dark-mode .rule-builder-note,
+body.dark-mode .rules-manual-editor {
+  border-color: rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 37, 0.88);
+}
+
+body.dark-mode .rule-builder-header p,
+body.dark-mode .rule-builder-feedback,
+body.dark-mode .rule-builder-note,
+body.dark-mode .rules-manual-copy,
+body.dark-mode .rules-manual-summary {
+  color: rgba(226, 232, 240, 0.85);
+}
+
+@media (max-width: 900px) {
+  .rule-builder-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rule-builder-header {
+    flex-direction: column;
+  }
+}
+
 .assignment-manager-add {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
