@@ -6,6 +6,7 @@ const SCHEDULING_RULES_OBJECT = "__config__-scheduling-rules.json";
 const AUDIT_LOG_OBJECT = "__config__-audit-log.json";
 const ADMIN_PASSWORDS_OBJECT = "__config__-admin-passwords.json";
 const CUSTOM_ASSIGNMENTS_OBJECT = "__config__-custom-assignments.json";
+const SKILLS_MATRIX_OBJECT = "__config__-skills-matrix.json";
 
 const PLAN_SCHEMA = {
   type: "object",
@@ -258,6 +259,10 @@ function defaultCustomAssignments() {
   return [];
 }
 
+function defaultSkillsMatrix() {
+  return {};
+}
+
 function normalizeCustomAssignments(payload) {
   return Array.isArray(payload)
     ? [...new Set(payload.map((entry) => String(entry || "").trim()).filter(Boolean))]
@@ -273,6 +278,23 @@ function normalizeAdminPasswords(payload) {
     Object.entries(payload)
       .map(([key, value]) => [String(key || "").trim(), String(value || "").trim()])
       .filter(([key, value]) => key && value)
+  );
+}
+
+function normalizeSkillsMatrix(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return defaultSkillsMatrix();
+  }
+
+  return Object.fromEntries(
+    Object.entries(payload)
+      .map(([personKey, skills]) => [
+        String(personKey || "").trim(),
+        Array.isArray(skills)
+          ? [...new Set(skills.map((skill) => String(skill || "").trim()).filter(Boolean))]
+          : [],
+      ])
+      .filter(([personKey]) => personKey)
   );
 }
 
@@ -388,6 +410,25 @@ async function writeCustomAssignments(assignments) {
   const normalized = normalizeCustomAssignments(assignments);
   await uploadObject(
     CUSTOM_ASSIGNMENTS_OBJECT,
+    "application/json; charset=utf-8",
+    Buffer.from(JSON.stringify(normalized, null, 2))
+  );
+  return normalized;
+}
+
+async function readSkillsMatrix() {
+  try {
+    const { body } = await downloadObject(SKILLS_MATRIX_OBJECT);
+    return normalizeSkillsMatrix(JSON.parse(body.toString("utf8") || "{}"));
+  } catch {
+    return defaultSkillsMatrix();
+  }
+}
+
+async function writeSkillsMatrix(skillsMatrix) {
+  const normalized = normalizeSkillsMatrix(skillsMatrix);
+  await uploadObject(
+    SKILLS_MATRIX_OBJECT,
     "application/json; charset=utf-8",
     Buffer.from(JSON.stringify(normalized, null, 2))
   );
@@ -587,6 +628,7 @@ module.exports = {
   processArchiveBacklog,
   readAdminPasswords,
   readCustomAssignments,
+  readSkillsMatrix,
   readAuditLog,
   readArchiveSettings,
   readJsonBody,
@@ -598,6 +640,7 @@ module.exports = {
   uploadObject,
   writeAdminPasswords,
   writeCustomAssignments,
+  writeSkillsMatrix,
   writeArchiveSettings,
   writeAuditLog,
   writeSchedulingRules,

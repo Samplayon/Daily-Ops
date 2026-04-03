@@ -2404,6 +2404,7 @@ let editableSkillAssignments = [...baseEditableSkillAssignments];
 let assignmentAliases = [...baseAssignmentAliases];
 let assignmentOptions = [];
 let customAssignmentsState = null;
+let skillsMatrixState = null;
 
 const automationDefinitions = [
   {
@@ -2444,6 +2445,7 @@ const shiftOverrideStorageKey = "daily-ops-shift-overrides-v1";
 const reshuffleReportStorageKey = "daily-ops-reshuffle-report-v1";
 const auditLogFallbackStorageKey = "daily-ops-audit-log-v1";
 const adminPasswordsStorageKey = "daily-ops-admin-passwords-v1";
+const skillsMatrixStorageKey = "daily-ops-skills-matrix-v1";
 const shiftTimeOptions = Array.from({ length: 17 }, (_, index) => 8 + index);
 let auditLogEntries = [];
 let auditLogLoaded = false;
@@ -2970,6 +2972,7 @@ function removeAssignmentEverywhere(assignment) {
     );
     person.skills = (person.skills || []).filter((skill) => skill !== assignment);
   });
+  void persistSkillsMatrix(buildSkillsMatrixPayload());
 }
 
 function renderAssignmentManager() {
@@ -3038,6 +3041,113 @@ function renderAssignmentManager() {
 
 function cloneData(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function defaultSkillsMatrix() {
+  return {};
+}
+
+function cloneSkillsMatrix(skillsMatrix) {
+  return JSON.parse(JSON.stringify(skillsMatrix || {}));
+}
+
+function normalizeSkillsMatrix(skillsMatrix) {
+  if (!skillsMatrix || typeof skillsMatrix !== "object" || Array.isArray(skillsMatrix)) {
+    return defaultSkillsMatrix();
+  }
+
+  return Object.fromEntries(
+    Object.entries(skillsMatrix)
+      .map(([personKey, skills]) => [
+        String(personKey || "").trim(),
+        Array.isArray(skills)
+          ? [...new Set(skills.map((skill) => String(skill || "").trim()).filter(Boolean))]
+          : [],
+      ])
+      .filter(([personKey]) => personKey)
+  );
+}
+
+function loadSkillsMatrix() {
+  if (skillsMatrixState) {
+    return cloneSkillsMatrix(skillsMatrixState);
+  }
+
+  try {
+    const raw = window.localStorage.getItem(skillsMatrixStorageKey);
+    skillsMatrixState = normalizeSkillsMatrix(raw ? JSON.parse(raw) : {});
+  } catch {
+    skillsMatrixState = defaultSkillsMatrix();
+  }
+
+  return cloneSkillsMatrix(skillsMatrixState);
+}
+
+function saveSkillsMatrix(skillsMatrix) {
+  skillsMatrixState = normalizeSkillsMatrix(skillsMatrix);
+  window.localStorage.setItem(skillsMatrixStorageKey, JSON.stringify(skillsMatrixState));
+  return cloneSkillsMatrix(skillsMatrixState);
+}
+
+function applySkillsMatrixToCollection(collection, skillsMatrix) {
+  const normalized = normalizeSkillsMatrix(skillsMatrix);
+  collection.forEach((person) => {
+    const personKey = personId(person);
+    if (!Object.prototype.hasOwnProperty.call(normalized, personKey)) return;
+    person.skills = [...normalized[personKey]];
+  });
+  return collection;
+}
+
+function buildSkillsMatrixPayload(collection = team) {
+  return Object.fromEntries(
+    collection.map((person) => [personId(person), [...new Set((person.skills || []).map((skill) => String(skill || "").trim()).filter(Boolean))]])
+  );
+}
+
+async function syncSkillsMatrixFromServer() {
+  if (!backendAvailable) return;
+
+  try {
+    const response = await fetch("/api/skills");
+    const payload = parseJsonSafely(await response.text(), {});
+    if (!response.ok) {
+      throw new Error(payload.details || payload.error || `Failed to load skills (${response.status})`);
+    }
+    saveSkillsMatrix(payload?.skills || defaultSkillsMatrix());
+    applySkillsMatrixToCollection(team, skillsMatrixState);
+    render();
+  } catch {
+    applySkillsMatrixToCollection(team, loadSkillsMatrix());
+    render();
+  }
+}
+
+async function persistSkillsMatrix(skillsMatrix) {
+  if (!backendAvailable) {
+    saveSkillsMatrix(skillsMatrix);
+    return cloneSkillsMatrix(skillsMatrix);
+  }
+
+  const response = await fetch("/api/skills", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ skills: skillsMatrix }),
+  });
+  const payload = parseJsonSafely(await response.text(), {});
+  if (!response.ok) {
+    throw new Error(payload.details || payload.error || `Failed to save skills (${response.status})`);
+  }
+  return saveSkillsMatrix(payload?.skills || skillsMatrix);
+}
+
+function getSkillsMatrixTeam() {
+  return [...getAdminVisibleTeam(team)].sort((left, right) => {
+    if (left.teamGroup !== right.teamGroup) {
+      return left.teamGroup === "core" ? -1 : 1;
+    }
+    return left.name.localeCompare(right.name);
+  });
 }
 
 function getAssistantScopedTeam() {
@@ -7427,7 +7537,7 @@ function renderArchives() {
   }
 }
 
-function renderSkillsMatrix(filteredTeam) {
+function renderSkillsMatrix(filteredTeam = getSkillsMatrixTeam()) {
   skillsMatrix.innerHTML = `
     <table class="skills-table">
       <thead>
@@ -7443,7 +7553,7 @@ function renderSkillsMatrix(filteredTeam) {
               <tr>
                 <td class="skills-name">
                   <strong>${person.name}</strong>
-                  <span class="skills-role">${person.title}</span>
+                  <span class="skills-role">${person.title} • ${person.teamGroup === "aco" ? "ACO" : "Support"}</span>
                 </td>
                 ${editableSkillAssignments
                   .map(
@@ -7480,6 +7590,7 @@ function renderSkillsMatrix(filteredTeam) {
       } else {
         person.skills = person.skills.filter((entry) => entry !== skill);
       }
+      void persistSkillsMatrix(buildSkillsMatrixPayload());
       render();
     });
   });
@@ -8106,7 +8217,7 @@ function render() {
   renderChart(filteredTeam);
   renderBoard(filteredTeam);
   renderShiftEditor();
-  renderSkillsMatrix(filteredTeam);
+  renderSkillsMatrix(getSkillsMatrixTeam());
   renderAssignmentManager();
   renderSchedulingRules();
   renderAdminPasswordManager();
@@ -8156,6 +8267,7 @@ discardPlanButton.addEventListener("click", discardPendingPlan);
 resetDataButton.addEventListener("click", () => {
   window.localStorage.removeItem(shiftOverrideStorageKey);
   team = cloneData(initialTeam);
+  applySkillsMatrixToCollection(team, loadSkillsMatrix());
   editingBoardRow = null;
   editingShiftPersonId = null;
   pendingPlan = null;
@@ -8290,9 +8402,12 @@ archivePreviewDetails?.addEventListener("toggle", () => {
     archivePreviewSummaryAction.textContent = archivePreviewDetails.open ? "Collapse" : "Expand";
   }
 });
+applySkillsMatrixToCollection(team, loadSkillsMatrix());
+
 refreshArchiveLibrary().finally(() => {
   render();
   void syncSchedulingRulesFromServer();
   void syncAdminPasswordsFromServer();
   void syncCustomAssignmentsFromServer();
+  void syncSkillsMatrixFromServer();
 });
