@@ -5368,6 +5368,8 @@ function isCoverageChangeRequest(text) {
   return containsAny(normalized, [
     "need",
     "put",
+    "move",
+    "shift",
     "assign",
     "have",
     "want",
