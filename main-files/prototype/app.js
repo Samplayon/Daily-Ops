@@ -2900,7 +2900,7 @@ async function persistCustomAssignments(assignments) {
 function addCustomAssignment(assignmentName) {
   const nextAssignment = String(assignmentName || "").trim();
   if (!nextAssignment) return false;
-  if (assignmentOptions.includes(nextAssignment)) return false;
+  if (editableSkillAssignments.includes(nextAssignment)) return false;
   const custom = loadCustomAssignments();
   custom.push(nextAssignment);
   const savedCustomAssignments = saveCustomAssignments(custom);
