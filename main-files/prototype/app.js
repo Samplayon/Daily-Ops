@@ -3431,7 +3431,7 @@ function syncAssistantBuilder() {
     assistantAssignmentSelect.closest("label")?.classList.remove("hidden");
     assistantTimeInput.closest("label")?.classList.remove("hidden");
     assistantNotesInput.closest("label")?.classList.remove("hidden");
-    assistantSubjectInput.placeholder = "2, 3, or 5";
+    assistantSubjectInput.placeholder = "2, 3, or 5, or everyone qualified";
     assistantTimeInput.placeholder = "from 2-5, each hour, or all day";
     assistantNotesInput.placeholder = "make it fair, keep manager balance";
     assistantAssignmentSelect.disabled = false;
