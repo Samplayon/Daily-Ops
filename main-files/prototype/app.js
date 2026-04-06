@@ -2205,8 +2205,24 @@ function inferSkills(assignments) {
   return baseEditableSkillAssignments.filter((assignment) => inferred.has(assignment));
 }
 
+function normalizeRosterTitle(title) {
+  const normalized = normalizeText(title || "");
+  if (
+    normalized === "support specialist 1" ||
+    normalized === "support specialist 2" ||
+    normalized === "fan support specialist" ||
+    normalized === "fan support specialists" ||
+    normalized === "lead fan support specialist" ||
+    normalized === "lead fan support specialists"
+  ) {
+    return "Support Specialist";
+  }
+  return title;
+}
+
 const initialTeam = rawInitialTeam.map((person) => ({
   ...person,
+  title: normalizeRosterTitle(person.title),
   teamGroup: acoNames.has(person.name) ? "aco" : "core",
   workdays: defaultWorkdays(),
   skills: inferSkills(person.assignments),
