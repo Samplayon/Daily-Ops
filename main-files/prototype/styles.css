@@ -216,6 +216,7 @@ body[data-theme="dark"] #admin-shell .automation-settings span,
 body[data-theme="dark"] #admin-shell .assignment-manager-fixed,
 body[data-theme="dark"] #admin-shell .toggle span,
 body[data-theme="dark"] #admin-shell .time-count,
+body[data-theme="dark"] #admin-shell .time-back-to-top,
 body[data-theme="dark"] #admin-shell .empty-state,
 body[data-theme="dark"] #admin-shell .person-meta,
 body[data-theme="dark"] #admin-shell .skills-role,
@@ -2260,10 +2261,38 @@ body.dark-mode .rules-manual-summary {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   padding: 16px 18px;
   background: linear-gradient(135deg, rgba(0, 201, 210, 0.08), #f9fbfc);
   border-bottom: 1px solid #d9e1e4;
 }
+
+.time-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.time-back-to-top {
+  padding: 10px 14px;
+  font-size: 0.84rem;
+  line-height: 1;
+}
+
+@media (max-width: 840px) {
+  .time-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .time-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 
 .time-header h3 {
   margin: 0;

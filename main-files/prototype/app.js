@@ -1199,7 +1199,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Anderson Stapleton",
-    "title": "Lead Fan Support Specialists",
+    "title": "Senior Support Specialist",
     "manager": "Sam",
     "schedule": "2 pm - 11 pm",
     "states": "",
@@ -8556,7 +8556,10 @@ function renderBoard(filteredTeam) {
               <h3>${group.label}</h3>
               <div class="time-subtitle">Current assignments in this block</div>
             </div>
-            <div class="time-count">${rows ? (rows.match(/assignment-row/g) || []).length : 0} assignments</div>
+            <div class="time-header-actions">
+              <div class="time-count">${rows ? (rows.match(/assignment-row/g) || []).length : 0} assignments</div>
+              <button type="button" class="secondary-button time-back-to-top">Back to top</button>
+            </div>
           </div>
           <div class="assignment-list">
             ${rows || `<div class="empty-state">No assignments in this block.</div>`}
@@ -8565,6 +8568,12 @@ function renderBoard(filteredTeam) {
       `;
     })
     .join("");
+
+  board.querySelectorAll(".time-back-to-top").forEach((button) => {
+    button.addEventListener("click", () => {
+      chartRoot?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  })
 
   board.querySelectorAll(".assignment-chip-button").forEach((button) => {
     button.addEventListener("click", () => {
