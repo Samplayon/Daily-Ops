@@ -3007,6 +3007,7 @@ function populatePersonFilter() {
 
 function populateManagerFilter() {
   if (!managerFilter) return;
+  const currentValue = managerFilter.value || "all";
   const scope = getCurrentAdminScope();
   const options =
     scope === "all"
@@ -3022,9 +3023,11 @@ function populateManagerFilter() {
     .map((option) => `<option value="${option.value}">${option.label}</option>`)
     .join("");
 
-  if (!options.some((option) => option.value === managerFilter.value)) {
-    managerFilter.value = scope === "all" ? "all" : scope;
-  }
+  managerFilter.value = options.some((option) => option.value === currentValue)
+    ? currentValue
+    : scope === "all"
+      ? "all"
+      : scope;
   managerFilter.disabled = scope !== "all";
 }
 
