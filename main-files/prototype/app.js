@@ -5440,20 +5440,31 @@ function findPeopleFromText(text) {
 
 function findAssignmentFromText(text) {
   const normalized = normalizeText(text);
-  const match = assignmentAliases.find((entry) =>
+  const aliasMatch = assignmentAliases.find((entry) =>
     entry.phrases.some((phrase) => normalized.includes(normalizeText(phrase)))
   );
-  return match ? match.canonical : null;
+  if (aliasMatch) return aliasMatch.canonical;
+
+  const directMatch = [...assignmentOptions]
+    .filter((assignment) => assignment && assignment !== "all")
+    .sort((a, b) => b.length - a.length)
+    .find((assignment) => normalized.includes(normalizeText(assignment)));
+
+  return directMatch || null;
 }
 
 function findAssignmentsFromText(text) {
   const normalized = normalizeText(text);
-  return assignmentAliases
+  const aliasMatches = assignmentAliases
     .filter((entry) =>
       entry.phrases.some((phrase) => normalized.includes(normalizeText(phrase)))
     )
-    .map((entry) => entry.canonical)
-    .filter((assignment, index, list) => list.indexOf(assignment) === index);
+    .map((entry) => entry.canonical);
+
+  const directMatches = [...assignmentOptions]
+    .filter((assignment) => assignment && assignment !== "all" && normalized.includes(normalizeText(assignment)));
+
+  return [...new Set([...aliasMatches, ...directMatches])];
 }
 
 function hourWithSuffix(hour, suffix) {
