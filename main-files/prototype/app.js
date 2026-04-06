@@ -2862,7 +2862,7 @@ function parseScheduleWindow(schedule) {
 
 function getWorkedBlockIndexesForSchedule(schedule) {
   const windowRange = parseScheduleWindow(schedule);
-  if (!windowRange) return [];
+  if (!windowRange) return null;
 
   return timeBlocks
     .map((block, blockIndex) => {
@@ -2885,10 +2885,17 @@ function formatScheduleValue(startHour, endHour) {
 }
 
 function applyScheduleToPerson(person, schedule) {
-  const nextWorkedBlocks = new Set(getWorkedBlockIndexesForSchedule(schedule));
+  const workedBlocks = getWorkedBlockIndexesForSchedule(schedule);
   const previousAssignments = person.assignments.map(([assignment, phones]) => [assignment, phones]);
 
   person.schedule = schedule;
+
+  if (workedBlocks === null) {
+    person.assignments = previousAssignments;
+    return;
+  }
+
+  const nextWorkedBlocks = new Set(workedBlocks);
   person.assignments = previousAssignments.map(([assignment, phones], blockIndex) => {
     if (nextWorkedBlocks.has(blockIndex)) {
       return [assignment, phones];
