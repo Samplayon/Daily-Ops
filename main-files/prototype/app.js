@@ -8667,6 +8667,7 @@ function renderShiftEditor() {
         normalizedStart: 8,
         normalizedEnd: 17,
       };
+      const permanentProfile = getStoredScheduleProfile(person);
       const currentStartHour = Math.max(8, Math.floor(currentShiftWindow.normalizedStart));
       const currentEndHour = Math.min(24, Math.ceil(currentShiftWindow.normalizedEnd));
       const shiftOptionMarkup = shiftTimeOptions
@@ -8682,6 +8683,22 @@ function renderShiftEditor() {
             `<option value="${hour}" ${hour === currentEndHour ? "selected" : ""}>${formatShiftHour(hour)}</option>`
         )
         .join("");
+      const workdayMarkup = weekDayDefinitions
+        .map(
+          (day) => `
+            <label class="workday-option">
+              <input
+                type="checkbox"
+                class="shift-workday-checkbox"
+                data-person-id="${personId(person)}"
+                value="${day.key}"
+                ${permanentProfile.workdays.includes(day.key) ? "checked" : ""}
+              />
+              <span>${day.shortLabel}</span>
+            </label>
+          `
+        )
+        .join("");
 
       return `
         <article class="shift-editor-card">
@@ -8689,6 +8706,7 @@ function renderShiftEditor() {
             <div class="person-name">${person.name}</div>
             <div class="person-meta">${person.title} • ${person.manager}</div>
             <div class="schedule-badge">Current shift: ${person.schedule}</div>
+            <div class="person-meta">Workdays: ${formatWorkdaysSummary(permanentProfile.workdays)}</div>
           </div>
           <div class="shift-edit-panel shift-editor-panel">
             <div class="shift-edit-grid">
@@ -8704,6 +8722,13 @@ function renderShiftEditor() {
                   ${shiftEndMarkup}
                 </select>
               </label>
+            </div>
+            <div class="shift-workdays-block">
+              <div class="shift-workdays-label">Workdays</div>
+              <div class="shift-workdays-grid">
+                ${workdayMarkup}
+              </div>
+              <div class="shift-workdays-note">These days apply when you choose Make this permanent. Today-only changes still only affect today.</div>
             </div>
             <div class="shift-edit-scope">
               <label class="shift-scope-option">
