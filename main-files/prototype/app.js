@@ -60,7 +60,7 @@ const timeBlocks = Array.from({ length: 16 }, (_, index) => {
 const rawInitialTeam = [
   {
     "name": "Ireal James",
-    "title": "Support Specialist 2",
+    "title": "Support Specialist",
     "manager": "Dohnny",
     "schedule": "8am - 5pm",
     "states": "Indiana, New Mexico, South Dakota",
@@ -101,7 +101,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Nick Broadie",
-    "title": "Support Specialist 2",
+    "title": "Support Specialist",
     "manager": "Dohnny",
     "schedule": "8am - 5pm",
     "states": "Arkansas, Oregon, Mississippi",
@@ -142,7 +142,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Nauman Khan",
-    "title": "Support Specialist 2",
+    "title": "Support Specialist",
     "manager": "Dohnny",
     "schedule": "9am - 6pm",
     "states": "Delaware, South Carolina, Arizona",
@@ -183,7 +183,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Michael Rakestraw",
-    "title": "Support Specialist 2",
+    "title": "Support Specialist",
     "manager": "Sam",
     "schedule": "10 am - 7pm",
     "states": "Connecticut, California, Arkansas",
@@ -224,7 +224,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Evan Nutsugah",
-    "title": "Support Specialist 2",
+    "title": "Support Specialist",
     "manager": "Dohnny",
     "schedule": "10 am - 7pm",
     "states": "Iowa, Tennessee, Rhode Island",
@@ -265,7 +265,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Tyler Todd",
-    "title": "Support Specialist 2",
+    "title": "Support Specialist",
     "manager": "Sam",
     "schedule": "10 am - 7pm",
     "states": "Minnesota, Alaska, North Carolina",
@@ -306,7 +306,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Mason Roach",
-    "title": "Support Specialist 2",
+    "title": "Support Specialist",
     "manager": "Dohnny",
     "schedule": "11 am - 8pm",
     "states": "Florida, Nevada, Minnesota",
@@ -347,7 +347,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Ezra Mix",
-    "title": "Support Specialist 2",
+    "title": "Support Specialist",
     "manager": "Nick",
     "schedule": "3pm-12am",
     "states": "Connecticut, Kansas, Maine",
@@ -388,7 +388,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Lilith Sharp",
-    "title": "Support Specialist 2",
+    "title": "Support Specialist",
     "manager": "Nick",
     "schedule": "3pm-12am",
     "states": "Michigan, Ohio, Oregon",
@@ -634,7 +634,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Katie Manis",
-    "title": "Support Specialist 1",
+    "title": "Support Specialist",
     "manager": "Dohnny",
     "schedule": "1pm - 10pm",
     "states": "Montana, New Jersey, Virginia",
@@ -675,7 +675,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Michael Gettemy",
-    "title": "Support Specialist 1",
+    "title": "Support Specialist",
     "manager": "Sam",
     "schedule": "8am-5pm",
     "states": "Alabama, Iowa, Louisiana",
@@ -716,7 +716,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Morticia Hollis",
-    "title": "Support Specialist 1",
+    "title": "Support Specialist",
     "manager": "Nick",
     "schedule": "11 am - 8pm",
     "states": "Wisconsin, New York, Missouri",
@@ -757,7 +757,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Rachel Williamson",
-    "title": "Support Specialist 1",
+    "title": "Support Specialist",
     "manager": "Nick",
     "schedule": "1pm - 10pm",
     "states": "Arkansas, Utah, Texas",
@@ -798,7 +798,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Amie Brannon",
-    "title": "Support Specialist 1",
+    "title": "Support Specialist",
     "manager": "Nick",
     "schedule": "3pm - 12pm",
     "states": "Colorado, Minnesota, Texas",
@@ -839,7 +839,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Sunshine Patterson",
-    "title": "Support Specialist 1",
+    "title": "Support Specialist",
     "manager": "Sam",
     "schedule": "1pm-10pm",
     "states": "Georgia, Colorado, West Virginia",
@@ -880,7 +880,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Kirah Martin",
-    "title": "Support Specialist 1",
+    "title": "Support Specialist",
     "manager": "Sam",
     "schedule": "1pm - 10pm",
     "states": "Kansas, Illinois, Oklahoma",
@@ -921,7 +921,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Cesia Valencia-Torres",
-    "title": "Fan Support Specialists",
+    "title": "Support Specialist",
     "manager": "Dohnny",
     "schedule": "8 am - 5 pm (M-F/T-Sat)",
     "states": "",
@@ -962,7 +962,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Kyle Snider",
-    "title": "Fan Support Specialists",
+    "title": "Support Specialist",
     "manager": "Nick",
     "schedule": "10am - 4pm",
     "states": "",
@@ -1003,7 +1003,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Mattie McMillan-Benton",
-    "title": "Fan Support Specialists",
+    "title": "Support Specialist",
     "manager": "Sam",
     "schedule": "10 am - 7pm",
     "states": "",
@@ -1044,7 +1044,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Ryan Gant",
-    "title": "Fan Support Specialists",
+    "title": "Support Specialist",
     "manager": "Nick",
     "schedule": "3 pm - 12 pm",
     "states": "",
@@ -1085,7 +1085,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Ebony Kelsey",
-    "title": "Fan Support Specialists",
+    "title": "Support Specialist",
     "manager": "Nick",
     "schedule": "6 pm - 11 pm",
     "states": "",
@@ -1126,7 +1126,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Antionette Brown",
-    "title": "Fan Support Specialists",
+    "title": "Support Specialist",
     "manager": "Dohnny",
     "schedule": "10 am - 7pm",
     "states": "",
@@ -1208,7 +1208,7 @@ const rawInitialTeam = [
   },
   {
     "name": "Eric Huisman",
-    "title": "Fan Support Specialists 3",
+    "title": "Support Specialist",
     "manager": "Joseph",
     "schedule": "10 am - 7pm",
     "states": "",
