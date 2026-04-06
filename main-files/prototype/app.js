@@ -57,6 +57,38 @@ const timeBlocks = Array.from({ length: 16 }, (_, index) => {
   };
 });
 
+const weekDayDefinitions = [
+  { key: "monday", shortLabel: "Mon", label: "Monday" },
+  { key: "tuesday", shortLabel: "Tue", label: "Tuesday" },
+  { key: "wednesday", shortLabel: "Wed", label: "Wednesday" },
+  { key: "thursday", shortLabel: "Thu", label: "Thursday" },
+  { key: "friday", shortLabel: "Fri", label: "Friday" },
+  { key: "saturday", shortLabel: "Sat", label: "Saturday" },
+];
+
+function defaultWorkdays() {
+  return weekDayDefinitions.slice(0, 5).map((day) => day.key);
+}
+
+function normalizeWorkdays(workdays) {
+  const validDays = new Set(weekDayDefinitions.map((day) => day.key));
+  const normalized = Array.isArray(workdays)
+    ? [...new Set(workdays.map((day) => String(day || "").trim().toLowerCase()).filter((day) => validDays.has(day)))]
+    : [];
+  return normalized.length ? normalized : defaultWorkdays();
+}
+
+function formatWorkdaysSummary(workdays) {
+  const normalized = normalizeWorkdays(workdays);
+  const labels = weekDayDefinitions
+    .filter((day) => normalized.includes(day.key))
+    .map((day) => day.shortLabel);
+  if (!labels.length) return "No workdays set";
+  if (labels.join(",") === "Mon,Tue,Wed,Thu,Fri") return "Mon-Fri";
+  if (labels.join(",") === "Mon,Tue,Wed,Thu,Fri,Sat") return "Mon-Sat";
+  return labels.join(", ");
+}
+
 const rawInitialTeam = [
   {
     "name": "Ireal James",
@@ -2176,6 +2208,7 @@ function inferSkills(assignments) {
 const initialTeam = rawInitialTeam.map((person) => ({
   ...person,
   teamGroup: acoNames.has(person.name) ? "aco" : "core",
+  workdays: defaultWorkdays(),
   skills: inferSkills(person.assignments),
   assignments: expandAssignments(person.assignments),
 }));
@@ -2501,6 +2534,13 @@ function getTodayKey() {
   return getDateKeyForTimezone(new Date(), "America/New_York");
 }
 
+function getCurrentWeekdayKey(date = new Date(), timeZone = "America/New_York") {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "long",
+  }).format(date).toLowerCase();
+}
+
 function loadReshuffleReport() {
   try {
     const raw = window.localStorage.getItem(reshuffleReportStorageKey);
@@ -2728,6 +2768,46 @@ function saveShiftOverrides(payload) {
   window.localStorage.setItem(shiftOverrideStorageKey, JSON.stringify(payload));
 }
 
+function getInitialPersonRecord(person) {
+  return initialTeam.find((entry) => personId(entry) === personId(person)) || person;
+}
+
+function getStoredScheduleProfile(person, dateKey = getTodayKey(), weekdayKey = getCurrentWeekdayKey()) {
+  const overrides = loadShiftOverrides();
+  const personKey = personId(person);
+  const initialPerson = getInitialPersonRecord(person);
+  const permanentOverride = overrides.permanent[personKey] || {};
+  const dailyOverride = overrides.daily[dateKey]?.[personKey] || {};
+  const baseSchedule = dailyOverride.schedule || permanentOverride.schedule || initialPerson.schedule || person.schedule;
+  const workdays = normalizeWorkdays(permanentOverride.workdays || initialPerson.workdays || person.workdays);
+  const isWorkingDay = Boolean(dailyOverride.schedule) || workdays.includes(weekdayKey);
+  return {
+    schedule: isWorkingDay ? baseSchedule : "Off",
+    baseSchedule,
+    workdays,
+    isWorkingDay,
+  };
+}
+
+function getWeekScheduleDays() {
+  const today = new Date(`${getTodayKey()}T12:00:00`);
+  const currentDayIndex = today.getDay();
+  const mondayOffset = (currentDayIndex + 6) % 7;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - mondayOffset);
+
+  return weekDayDefinitions.map((day, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    return {
+      ...day,
+      date,
+      dateKey: getDateKeyForTimezone(date),
+      formattedDate: date.toLocaleDateString([], { month: "numeric", day: "numeric" }),
+    };
+  });
+}
+
 function normalizeHourValue(hour) {
   if (hour >= 24) return hour;
   if (hour < 8) return hour + 24;
@@ -2802,27 +2882,25 @@ function applyScheduleToPerson(person, schedule) {
 }
 
 function applyStoredShiftOverrides() {
-  const overrides = loadShiftOverrides();
-  const todayOverrides = overrides.daily[getTodayKey()] || {};
+  const todayKey = getTodayKey();
+  const weekdayKey = getCurrentWeekdayKey();
 
   team.forEach((person) => {
-    const permanentOverride = overrides.permanent[personId(person)];
-    const dailyOverride = todayOverrides[personId(person)];
-    const nextSchedule = dailyOverride?.schedule || permanentOverride?.schedule;
-    if (nextSchedule) {
-      applyScheduleToPerson(person, nextSchedule);
-    }
+    const profile = getStoredScheduleProfile(person, todayKey, weekdayKey);
+    person.workdays = profile.workdays;
+    applyScheduleToPerson(person, profile.schedule);
   });
 }
 
-function saveShiftChange(person, schedule, mode) {
+function saveShiftChange(person, schedule, mode, workdays = null) {
   const overrides = loadShiftOverrides();
   const personKey = personId(person);
   const todayKey = getTodayKey();
-  const previousSchedule = person.schedule;
+  const previousProfile = getStoredScheduleProfile(person, todayKey, getCurrentWeekdayKey());
+  const normalizedWorkdays = normalizeWorkdays(workdays || person.workdays);
 
   if (mode === "permanent") {
-    overrides.permanent[personKey] = { schedule };
+    overrides.permanent[personKey] = { schedule, workdays: normalizedWorkdays };
     overrides.daily[todayKey] = overrides.daily[todayKey] || {};
     overrides.daily[todayKey][personKey] = { schedule };
   } else {
@@ -2831,14 +2909,15 @@ function saveShiftChange(person, schedule, mode) {
   }
 
   saveShiftOverrides(overrides);
-  applyScheduleToPerson(person, schedule);
+  applyStoredShiftOverrides();
   if (currentView === "admin") {
     void appendAuditLogEntry({
       actionType: "shift_change",
       summary: `${person.name} shift changed to ${schedule}`,
       details: [
-        `Previous schedule: ${previousSchedule}`,
+        `Previous schedule: ${previousProfile.baseSchedule}`,
         `New schedule: ${schedule}`,
+        mode === "permanent" ? `Workdays: ${formatWorkdaysSummary(normalizedWorkdays)}` : "Workdays: unchanged",
         mode === "permanent" ? "Scope: Permanent default schedule" : "Scope: Today only",
       ],
     });
@@ -8685,7 +8764,11 @@ function renderShiftEditor() {
       const endHour = Number(endSelect.value);
       if (!Number.isFinite(startHour) || !Number.isFinite(endHour) || endHour <= startHour) return;
 
-      saveShiftChange(person, formatScheduleValue(startHour, endHour), modeInput.value);
+      const selectedWorkdays = Array.from(
+        shiftEditorList.querySelectorAll(`.shift-workday-checkbox[data-person-id="${button.dataset.personId}"]:checked`)
+      ).map((input) => input.value);
+
+      saveShiftChange(person, formatScheduleValue(startHour, endHour), modeInput.value, selectedWorkdays);
       render();
     });
   });
@@ -8693,7 +8776,11 @@ function renderShiftEditor() {
 
 function renderAgentBoard() {
   const person = getPersonById(selectedAgentId);
+  const agentWeeklySchedule = document.getElementById("agent-weekly-schedule");
   if (!person) {
+    if (agentWeeklySchedule) {
+      agentWeeklySchedule.innerHTML = `<div class="empty-state">Choose a name to see the week.</div>`;
+    }
     agentBoard.innerHTML = `<div class="empty-state">Choose a name to see a schedule.</div>`;
     renderAgentCoverageChart(null);
     return;
@@ -8701,11 +8788,49 @@ function renderAgentBoard() {
 
   applyAgentPreferences();
 
+  const permanentProfile = getStoredScheduleProfile(person);
+  const effectiveTodayProfile = getStoredScheduleProfile(person, getTodayKey(), getCurrentWeekdayKey());
+  const weekDays = getWeekScheduleDays();
+
   agentHeroName.textContent = `${person.name}'s schedule`;
   agentNameStat.textContent = person.name;
-  agentScheduleStat.textContent = person.schedule;
+  agentScheduleStat.textContent = `${permanentProfile.baseSchedule} • ${formatWorkdaysSummary(permanentProfile.workdays)}`;
   agentManagerStat.textContent = person.manager;
   agentSubtitle.textContent = `${person.title} • ${person.states}`;
+
+  if (agentWeeklySchedule) {
+    agentWeeklySchedule.innerHTML = `
+      <div class="agent-weekly-header">
+        <div>
+          <div class="time-subtitle">Monday-Saturday</div>
+          <h3>This week</h3>
+        </div>
+        <span class="schedule-badge">${formatWorkdaysSummary(permanentProfile.workdays)}</span>
+      </div>
+      <div class="agent-week-grid">
+        ${weekDays
+          .map((day) => {
+            const profile = getStoredScheduleProfile(person, day.dateKey, day.key);
+            const classes = ["agent-week-card"];
+            if (day.dateKey === getTodayKey()) classes.push("is-today");
+            if (!profile.isWorkingDay) classes.push("is-off");
+            return `
+              <article class="${classes.join(" ")}">
+                <div class="agent-week-card-top">
+                  <div>
+                    <div class="agent-weekday-label">${day.label}</div>
+                    <div class="agent-weekday-date">${day.formattedDate}</div>
+                  </div>
+                  ${day.dateKey === getTodayKey() ? '<span class="schedule-badge">Today</span>' : ""}
+                </div>
+                <div class="agent-weekday-schedule ${profile.isWorkingDay ? "" : "is-off"}">${profile.isWorkingDay ? profile.baseSchedule : "Off"}</div>
+              </article>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
+  }
 
   const groupedBlocks = getGroupedBlocks();
   const currentHour = new Date().getHours();
@@ -8746,7 +8871,7 @@ function renderAgentBoard() {
         <article class="agent-day-row">
           <div>
             <div class="person-name">${group.label}</div>
-            <div class="person-meta">${person.schedule}</div>
+            <div class="person-meta">${effectiveTodayProfile.schedule}</div>
           </div>
           <div class="assignment-main">
             <span class="assignment-chip ${assignment === "OOO/Sick/PTO" ? "out" : assignment === "Open" ? "open" : ""}">${assignment}</span>
@@ -8767,7 +8892,7 @@ function renderAgentBoard() {
       </div>
       <div class="agent-now-body">
         <span class="assignment-chip agent-now-assignment ${currentAssignment === "OOO/Sick/PTO" ? "out" : currentAssignment === "Open" ? "open" : ""}">${currentAssignment}</span>
-        <div class="person-meta">${person.name} • ${person.schedule}</div>
+        <div class="person-meta">${person.name} • ${effectiveTodayProfile.schedule}</div>
       </div>
     </article>
 
@@ -8778,7 +8903,7 @@ function renderAgentBoard() {
     </article>
 
     <details class="agent-day-details">
-      <summary>${remainingGroups.length ? "Expand • See rest of day" : "No more blocks today"}</summary>
+      <summary>${remainingGroups.length ? "Collapse • Hide rest of day" : "No more blocks today"}</summary>
       <div class="agent-day-list">
         ${fullDayMarkup}
       </div>
