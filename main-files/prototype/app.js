@@ -2558,37 +2558,49 @@ function renderReshufflePreviewCard() {
 
   if (!isReshufflePlan(pendingPlan)) {
     reshufflePreviewCard.innerHTML = `
-      <div class="panel-header">
-        <div>
-          <h2>Reshuffle Preview</h2>
-          <p>Run the rule-based reshuffle to stage changes here before anything applies to the board.</p>
+      <details class="automation-section-details" open>
+        <summary class="automation-section-summary">
+          <div>
+            <h2>Reshuffle Preview</h2>
+            <p>Stage a manual reshuffle here before anything applies to the board.</p>
+          </div>
+          <span class="automation-section-summary-action">Collapse</span>
+        </summary>
+        <div class="automation-section-body">
+          <div class="reshuffle-report-empty">No reshuffle preview is staged right now.</div>
         </div>
-      </div>
-      <div class="reshuffle-report-empty">No reshuffle preview is staged right now.</div>
+      </details>
     `;
     return;
   }
 
   const previewPlan = pendingPlan;
   reshufflePreviewCard.innerHTML = `
-    <div class="panel-header">
-      <div>
-        <h2>Reshuffle Preview</h2>
-        <p>Review the staged schedule updates before applying them to the live board.</p>
+    <details class="automation-section-details" open>
+      <summary class="automation-section-summary">
+        <div>
+          <h2>Reshuffle Preview</h2>
+          <p>Review the staged schedule updates before applying them to the live board.</p>
+        </div>
+        <div class="automation-section-summary-meta">
+          <span class="panel-badge">${previewPlan.actions.length} change${previewPlan.actions.length === 1 ? "" : "s"}</span>
+          <span class="automation-section-summary-action">Collapse</span>
+        </div>
+      </summary>
+      <div class="automation-section-body">
+        <div class="reshuffle-report-summary">${previewPlan.summary || "Rule-based reshuffle preview is ready."}</div>
+        <div class="reshuffle-preview-actions">
+          <button type="button" id="automation-preview-apply">Apply Preview</button>
+          <button type="button" class="secondary-button" id="automation-preview-discard">Discard Preview</button>
+        </div>
+        <div class="reshuffle-report-section">
+          <h4>Planned changes</h4>
+          <div class="plan-list">
+            ${previewPlan.actions.map((action) => `<div class="plan-item">${describeAction(action)}</div>`).join("")}
+          </div>
+        </div>
       </div>
-      <span class="panel-badge">${previewPlan.actions.length} change${previewPlan.actions.length === 1 ? "" : "s"}</span>
-    </div>
-    <div class="reshuffle-report-summary">${previewPlan.summary || "Rule-based reshuffle preview is ready."}</div>
-    <div class="reshuffle-preview-actions">
-      <button type="button" id="automation-preview-apply">Apply Preview</button>
-      <button type="button" class="secondary-button" id="automation-preview-discard">Discard Preview</button>
-    </div>
-    <div class="reshuffle-report-section">
-      <h4>Planned changes</h4>
-      <div class="plan-list">
-        ${previewPlan.actions.map((action) => `<div class="plan-item">${describeAction(action)}</div>`).join("")}
-      </div>
-    </div>
+    </details>
   `;
 
   reshufflePreviewCard.querySelector('#automation-preview-apply')?.addEventListener('click', applyPendingPlan);
@@ -2599,13 +2611,18 @@ function renderReshuffleReportCard() {
   if (!reshuffleReportCard) return;
   if (!latestReshuffleReport) {
     reshuffleReportCard.innerHTML = `
-      <div class="panel-header">
-        <div>
-          <h2>Last Reshuffle Logic</h2>
-          <p>Run a manual reshuffle to capture the rules and reasoning used.</p>
+      <details class="automation-section-details" open>
+        <summary class="automation-section-summary">
+          <div>
+            <h2>Last Reshuffle Logic</h2>
+            <p>Run a manual reshuffle to capture the rules and reasoning used.</p>
+          </div>
+          <span class="automation-section-summary-action">Collapse</span>
+        </summary>
+        <div class="automation-section-body">
+          <div class="reshuffle-report-empty">No manual reshuffle explanation has been saved yet.</div>
         </div>
-      </div>
-      <div class="reshuffle-report-empty">No manual reshuffle explanation has been saved yet.</div>
+      </details>
     `;
     return;
   }
@@ -2613,48 +2630,55 @@ function renderReshuffleReportCard() {
   const lines = (latestReshuffleReport.details || []).slice(0, 12);
   const perRuleResults = latestReshuffleReport.ruleResults || [];
   reshuffleReportCard.innerHTML = `
-    <div class="panel-header">
-      <div>
-        <h2>Last Reshuffle Logic</h2>
-        <p>Use this summary when you want to review or audit the most recent manual reshuffle.</p>
+    <details class="automation-section-details" open>
+      <summary class="automation-section-summary">
+        <div>
+          <h2>Last Reshuffle Logic</h2>
+          <p>Use this summary when you want to review or audit the most recent manual reshuffle.</p>
+        </div>
+        <div class="automation-section-summary-meta">
+          <span class="panel-badge">${latestReshuffleReport.timestampLabel || "Saved"}</span>
+          <span class="automation-section-summary-action">Collapse</span>
+        </div>
+      </summary>
+      <div class="automation-section-body">
+        <div class="reshuffle-report-summary">${latestReshuffleReport.summary}</div>
+        <div class="reshuffle-report-stats">
+          <div class="reshuffle-report-stat"><span>Saved rules</span><strong>${latestReshuffleReport.ruleCount || 0}</strong></div>
+          <div class="reshuffle-report-stat"><span>Direct scheduling rules</span><strong>${latestReshuffleReport.actionableRuleCount || 0}</strong></div>
+          <div class="reshuffle-report-stat"><span>Changes applied</span><strong>${latestReshuffleReport.actionCount || 0}</strong></div>
+          <div class="reshuffle-report-stat"><span>Run by</span><strong>${latestReshuffleReport.runBy || "Unknown"}</strong></div>
+        </div>
+        <div class="reshuffle-report-section">
+          <h4>Rule snapshot</h4>
+          <div class="reshuffle-report-rules">${(latestReshuffleReport.rules || []).map((rule) => `<div class="reshuffle-report-rule">${rule}</div>`).join("")}</div>
+        </div>
+        <div class="reshuffle-report-section">
+          <h4>Per-rule results</h4>
+          <div class="reshuffle-report-rule-results">${perRuleResults.length
+            ? perRuleResults.map((result) => `
+                <article class="reshuffle-report-rule-result">
+                  <div class="reshuffle-report-rule-result-top">
+                    <span class="reshuffle-report-rule-result-scope">${(result.scope || 'all').toUpperCase()}</span>
+                    <strong>${result.label || result.assignment || 'Rule review'}</strong>
+                    <span class="reshuffle-report-rule-result-status">${result.status}</span>
+                  </div>
+                  <div class="reshuffle-report-rule-result-rule">${result.rule}</div>
+                  <div class="reshuffle-report-rule-result-meta">
+                    <span>${result.changeCount || 0} change${result.changeCount === 1 ? '' : 's'}</span>
+                    <span>${result.reviewedBlocks || 0} block${result.reviewedBlocks === 1 ? '' : 's'} reviewed</span>
+                  </div>
+                  ${result.notes && result.notes.length ? `<ul class="reshuffle-report-rule-notes">${result.notes.map((note) => `<li>${note}</li>`).join("")}</ul>` : ''}
+                </article>
+              `).join("")
+            : `<div class="reshuffle-report-rule">No per-rule breakdown saved yet.</div>`}</div>
+        </div>
+        <div class="reshuffle-report-section">
+          <h4>Why these changes happened</h4>
+          <ul class="reshuffle-report-list">${lines.map((line) => `<li>${line}</li>`).join("")}</ul>
+        </div>
       </div>
-      <span class="panel-badge">${latestReshuffleReport.timestampLabel || "Saved"}</span>
-    </div>
-    <div class="reshuffle-report-summary">${latestReshuffleReport.summary}</div>
-    <div class="reshuffle-report-stats">
-      <div class="reshuffle-report-stat"><span>Saved rules</span><strong>${latestReshuffleReport.ruleCount || 0}</strong></div>
-      <div class="reshuffle-report-stat"><span>Direct scheduling rules</span><strong>${latestReshuffleReport.actionableRuleCount || 0}</strong></div>
-      <div class="reshuffle-report-stat"><span>Changes applied</span><strong>${latestReshuffleReport.actionCount || 0}</strong></div>
-      <div class="reshuffle-report-stat"><span>Run by</span><strong>${latestReshuffleReport.runBy || "Unknown"}</strong></div>
-    </div>
-    <div class="reshuffle-report-section">
-      <h4>Rule snapshot</h4>
-      <div class="reshuffle-report-rules">${(latestReshuffleReport.rules || []).map((rule) => `<div class="reshuffle-report-rule">${rule}</div>`).join("")}</div>
-    </div>
-    <div class="reshuffle-report-section">
-      <h4>Per-rule results</h4>
-      <div class="reshuffle-report-rule-results">${perRuleResults.length
-        ? perRuleResults.map((result) => `
-            <article class="reshuffle-report-rule-result">
-              <div class="reshuffle-report-rule-result-top">
-                <span class="reshuffle-report-rule-result-scope">${(result.scope || 'all').toUpperCase()}</span>
-                <strong>${result.label || result.assignment || 'Rule review'}</strong>
-                <span class="reshuffle-report-rule-result-status">${result.status}</span>
-              </div>
-              <div class="reshuffle-report-rule-result-rule">${result.rule}</div>
-              <div class="reshuffle-report-rule-result-meta">
-                <span>${result.changeCount || 0} change${result.changeCount === 1 ? '' : 's'}</span>
-                <span>${result.reviewedBlocks || 0} block${result.reviewedBlocks === 1 ? '' : 's'} reviewed</span>
-              </div>
-              ${result.notes && result.notes.length ? `<ul class="reshuffle-report-rule-notes">${result.notes.map((note) => `<li>${note}</li>`).join("")}</ul>` : ''}
-            </article>
-          `).join("")
-        : `<div class="reshuffle-report-rule">No per-rule breakdown saved yet.</div>`}</div>
-    </div>
-    <div class="reshuffle-report-section">
-      <h4>Why these changes happened</h4>
-      <ul class="reshuffle-report-list">${lines.map((line) => `<li>${line}</li>`).join("")}</ul>
-    </div>
+    </details>
   `;
 }
 
@@ -7879,72 +7903,80 @@ function renderAutomations() {
     .map((automation) => {
       const testState = automationTestState[automation.id];
       return `
-        <article class="automation-card">
-          <div class="automation-copy">
-            <div>
+        <details class="automation-card" open>
+          <summary class="automation-card-summary">
+            <div class="automation-card-summary-copy">
               <h3>${automation.name}</h3>
               <p>${automation.description}</p>
             </div>
-            ${
-              automation.kind === "pdf-archive"
-                ? `
-                  <div class="automation-settings">
-                    <label>
-                      <span>Run time</span>
-                      <input type="time" value="${archiveStatus.time || automation.time || "00:00"}" data-automation-time="${automation.id}" />
-                    </label>
-                    <div class="automation-cloud-status automation-settings-wide">
-                      <span>Supabase archive</span>
-                      <div class="automation-cloud-note">
-                        ${archiveLibrary.folder || "Supabase bucket: daily-ops-archives"}
-                      </div>
-                      <div class="automation-cloud-note">
-                        ${
-                          archiveStatus.lastArchivedDate
-                            ? `Last archived day: ${archiveStatus.lastArchivedDate}${archiveStatus.lastArchivedAt ? ` • ${new Date(archiveStatus.lastArchivedAt).toLocaleString()}` : ""}`
-                            : "No archived day yet."
-                        }
-                      </div>
-                      <div class="automation-cloud-note">
-                        ${archiveStatus.nextRun ? `Next run: ${new Date(archiveStatus.nextRun).toLocaleString()}` : "Next run will appear here after the server refreshes."}
-                      </div>
-                      <div class="automation-cloud-note">
-                        If the app already saved that day’s schedule snapshot, a missed midnight run can catch up the next time your computer and server come back on.
-                      </div>
-                    </div>
-                  </div>
-                `
-                : automation.kind === "schedule-reshuffle"
+            <div class="automation-card-summary-meta">
+              <span class="automation-card-status ${automation.enabled ? 'is-enabled' : 'is-disabled'}">${automation.enabled ? 'Enabled' : 'Disabled'}</span>
+              <span class="automation-card-summary-action">Collapse</span>
+            </div>
+          </summary>
+          <div class="automation-card-body">
+            <div class="automation-copy">
+              ${
+                automation.kind === "pdf-archive"
                   ? `
                     <div class="automation-settings">
+                      <label>
+                        <span>Run time</span>
+                        <input type="time" value="${archiveStatus.time || automation.time || "00:00"}" data-automation-time="${automation.id}" />
+                      </label>
                       <div class="automation-cloud-status automation-settings-wide">
-                        <span>Rule-based schedule automation</span>
-                        <div class="automation-cloud-note">Manual run applies the saved All, Support, and ACO scheduling rules to today’s board.</div>
-                        <div class="automation-cloud-note">Use this after updating scheduling rules when you want the board reshuffled to match them.</div>
+                        <span>Supabase archive</span>
+                        <div class="automation-cloud-note">
+                          ${archiveLibrary.folder || "Supabase bucket: daily-ops-archives"}
+                        </div>
+                        <div class="automation-cloud-note">
+                          ${
+                            archiveStatus.lastArchivedDate
+                              ? `Last archived day: ${archiveStatus.lastArchivedDate}${archiveStatus.lastArchivedAt ? ` • ${new Date(archiveStatus.lastArchivedAt).toLocaleString()}` : ""}`
+                              : "No archived day yet."
+                          }
+                        </div>
+                        <div class="automation-cloud-note">
+                          ${archiveStatus.nextRun ? `Next run: ${new Date(archiveStatus.nextRun).toLocaleString()}` : "Next run will appear here after the server refreshes."}
+                        </div>
+                        <div class="automation-cloud-note">
+                          If the app already saved that day’s schedule snapshot, a missed midnight run can catch up the next time your computer and server come back on.
+                        </div>
                       </div>
                     </div>
                   `
-                  : ""
-            }
-            <div class="automation-meta">
-              ${
-                testState
-                  ? `<div class="automation-test-note">${testState.message} ${testState.timestamp}</div>`
-                  : `<div class="automation-test-note">No test has been run yet.</div>`
+                  : automation.kind === "schedule-reshuffle"
+                    ? `
+                      <div class="automation-settings">
+                        <div class="automation-cloud-status automation-settings-wide">
+                          <span>Rule-based schedule automation</span>
+                          <div class="automation-cloud-note">Manual run applies the saved All, Support, and ACO scheduling rules to today’s board.</div>
+                          <div class="automation-cloud-note">Use this after updating scheduling rules when you want the board reshuffled to match them.</div>
+                        </div>
+                      </div>
+                    `
+                    : ""
               }
+              <div class="automation-meta">
+                ${
+                  testState
+                    ? `<div class="automation-test-note">${testState.message} ${testState.timestamp}</div>`
+                    : `<div class="automation-test-note">No test has been run yet.</div>`
+                }
+              </div>
+            </div>
+            <div class="automation-actions">
+              <label class="automation-switch">
+                <input type="checkbox" data-automation-toggle="${automation.id}" ${automation.enabled ? "checked" : ""} />
+                <span class="automation-switch-track" aria-hidden="true"></span>
+                <span class="automation-switch-label">${automation.enabled ? "Enabled" : "Disabled"}</span>
+              </label>
+              <button type="button" class="secondary-button automation-test-button" data-automation-test="${automation.id}">
+                ${automation.kind === "schedule-reshuffle" ? "Reshuffle Now" : "Manual Run"}
+              </button>
             </div>
           </div>
-          <div class="automation-actions">
-            <label class="automation-switch">
-              <input type="checkbox" data-automation-toggle="${automation.id}" ${automation.enabled ? "checked" : ""} />
-              <span class="automation-switch-track" aria-hidden="true"></span>
-              <span class="automation-switch-label">${automation.enabled ? "Enabled" : "Disabled"}</span>
-            </label>
-            <button type="button" class="secondary-button automation-test-button" data-automation-test="${automation.id}">
-              ${automation.kind === "schedule-reshuffle" ? "Reshuffle Now" : "Manual Run"}
-            </button>
-          </div>
-        </article>
+        </details>
       `;
     })
     .join("");
@@ -8109,12 +8141,14 @@ function renderSkillsMatrix(filteredTeam = getSkillsMatrixTeam()) {
 }
 
 function renderChart(filteredTeam) {
+  const selectedAssignment = assignmentFilter.value;
   const blockData = getGroupedBlocks().map((group) => {
     const counts = {};
     filteredTeam.forEach((person) => {
       group.blockIndexes.forEach((blockIndex) => {
         const [assignment] = person.assignments[blockIndex];
         if (!assignment) return;
+        if (selectedAssignment !== "all" && assignment !== selectedAssignment) return;
         counts[assignment] = (counts[assignment] || 0) + 1;
       });
     });
@@ -8246,6 +8280,7 @@ function renderAgentCoverageChart(person) {
 function renderBoard(filteredTeam) {
   const board = document.getElementById("ops-board");
   const groups = getGroupedBlocks();
+  const selectedAssignment = assignmentFilter.value;
 
   boardJumpRoot.innerHTML = "";
 
@@ -8257,8 +8292,12 @@ function renderBoard(filteredTeam) {
             .map((blockIndex) => person.assignments[blockIndex][0])
             .filter(Boolean);
           if (!assignments.length) return null;
-          const primaryAssignment = assignments[0];
-          const mixedAssignments = [...new Set(assignments)];
+          const visibleAssignments = selectedAssignment === "all"
+            ? assignments
+            : assignments.filter((assignment) => assignment === selectedAssignment);
+          if (!visibleAssignments.length) return null;
+          const primaryAssignment = visibleAssignments[0];
+          const mixedAssignments = [...new Set(visibleAssignments)];
           const rowKey = `${personId(person)}:${group.startIndex}`;
           const isEditing = editingBoardRow === rowKey;
           const isEditingShift = editingShiftPersonId === personId(person);

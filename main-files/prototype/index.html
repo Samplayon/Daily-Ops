@@ -57,7 +57,7 @@
             <div id="admin-identity-badge" class="eyebrow">Signed in as Admin</div>
           </div>
         </div>
-        <button id="back-to-home-admin" type="button" class="hero-back-button secondary-button">Back</button>
+        <button id="back-to-home-admin" type="button" class="hero-back-button">Back</button>
         <div class="admin-stats">
           <div class="hero-stat">
             <span class="stat-label">Team members</span>
@@ -378,43 +378,66 @@
                 <p>Turn automations on or off and test them manually from one place.</p>
               </div>
             </div>
-            <section class="panel nested-panel">
-              <div class="panel-header">
-                <div>
-                  <h2>Scheduling Rules</h2>
-                  <p>Add the rules the future auto-scheduler should follow.</p>
-                </div>
-              </div>
-              <div id="scheduling-rules-card"></div>
-            </section>
-            <div id="automations-list" class="automations-list"></div>
-            <section id="reshuffle-preview-card" class="panel panel-archives nested-panel"></section>
-            <section id="reshuffle-report-card" class="panel panel-archives nested-panel"></section>
-            <section class="panel panel-archives nested-panel">
-              <div class="panel-header">
-                <div>
-                  <h2>Archive Library</h2>
-                  <p>View saved schedule archives right here in the admin center.</p>
-                </div>
-              </div>
-              <div id="archives-list" class="archives-list"></div>
-              <div id="archive-preview" class="archive-preview hidden">
-                <details id="archive-preview-details" class="archive-preview-details" open>
-                  <summary class="archive-preview-summary">
-                    <div>
-                      <h3 id="archive-preview-title">Latest Archive</h3>
-                      <p id="archive-preview-meta" class="archive-preview-meta"></p>
-                    </div>
-                    <span class="archive-preview-summary-action">Collapse</span>
-                  </summary>
-                  <div class="archive-preview-body">
-                    <div class="archive-preview-header-actions">
-                      <a id="archive-preview-open" class="secondary-button" href="#" target="_blank" rel="noopener noreferrer">Download</a>
-                    </div>
-                    <div id="archive-preview-table" class="archive-preview-table-wrap"></div>
+            <section class="panel nested-panel automation-panel">
+              <details class="automation-section-details" open>
+                <summary class="automation-section-summary">
+                  <div>
+                    <h2>Scheduling Rules</h2>
+                    <p>Add the rules the future auto-scheduler should follow.</p>
                   </div>
-                </details>
-              </div>
+                  <span class="automation-section-summary-action">Collapse</span>
+                </summary>
+                <div class="automation-section-body">
+                  <div id="scheduling-rules-card"></div>
+                </div>
+              </details>
+            </section>
+            <section id="reshuffle-preview-card" class="panel panel-archives nested-panel automation-panel"></section>
+            <section id="reshuffle-report-card" class="panel panel-archives nested-panel automation-panel"></section>
+            <section class="panel nested-panel automation-panel">
+              <details class="automation-section-details" open>
+                <summary class="automation-section-summary">
+                  <div>
+                    <h2>Automation Actions</h2>
+                    <p>Run the saved automations manually or toggle them on and off.</p>
+                  </div>
+                  <span class="automation-section-summary-action">Collapse</span>
+                </summary>
+                <div class="automation-section-body">
+                  <div id="automations-list" class="automations-list"></div>
+                </div>
+              </details>
+            </section>
+            <section class="panel panel-archives nested-panel automation-panel">
+              <details class="automation-section-details" open>
+                <summary class="automation-section-summary">
+                  <div>
+                    <h2>Archive Library</h2>
+                    <p>View saved schedule archives right here in the admin center.</p>
+                  </div>
+                  <span class="automation-section-summary-action">Collapse</span>
+                </summary>
+                <div class="automation-section-body">
+                  <div id="archives-list" class="archives-list"></div>
+                  <div id="archive-preview" class="archive-preview hidden">
+                    <details id="archive-preview-details" class="archive-preview-details" open>
+                      <summary class="archive-preview-summary">
+                        <div>
+                          <h3 id="archive-preview-title">Latest Archive</h3>
+                          <p id="archive-preview-meta" class="archive-preview-meta"></p>
+                        </div>
+                        <span class="archive-preview-summary-action">Collapse</span>
+                      </summary>
+                      <div class="archive-preview-body">
+                        <div class="archive-preview-header-actions">
+                          <a id="archive-preview-open" class="secondary-button" href="#" target="_blank" rel="noopener noreferrer">Download</a>
+                        </div>
+                        <div id="archive-preview-table" class="archive-preview-table-wrap"></div>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+              </details>
             </section>
           </div>
         </section>
@@ -432,7 +455,7 @@
           <p class="hero-text">This view only shows one person’s schedule.</p>
         </div>
         <div class="hero-card">
-          <button id="back-to-home-agent" type="button" class="hero-back-button secondary-button">Back</button>
+          <button id="back-to-home-agent" type="button" class="hero-back-button">Back</button>
           <div class="hero-stat">
             <span class="stat-label">Specialist</span>
             <strong id="agent-name-stat">-</strong>

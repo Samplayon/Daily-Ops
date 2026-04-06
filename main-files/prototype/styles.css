@@ -1561,14 +1561,139 @@ body.dark-mode .rules-manual-summary {
   font-size: 0.92rem;
 }
 
+.automation-panel {
+  overflow: hidden;
+}
+
+.automation-section-details {
+  border: 0;
+}
+
+.automation-section-details[open] {
+  padding-bottom: 0;
+}
+
+.automation-section-summary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+}
+
+.automation-section-summary::-webkit-details-marker {
+  display: none;
+}
+
+.automation-section-summary h2,
+.automation-section-summary p {
+  margin: 0;
+}
+
+.automation-section-summary p {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.automation-section-summary-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.automation-section-summary-action {
+  font-weight: 700;
+  color: var(--accent-deep);
+  white-space: nowrap;
+}
+
+.automation-section-details:not([open]) .automation-section-summary-action {
+  color: var(--muted);
+}
+
+.automation-section-body {
+  margin-top: 16px;
+}
+
+
 .automation-card {
-  display: grid;
-  grid-template-columns: 1.5fr auto;
-  gap: 18px;
-  padding: 20px;
   border-radius: 22px;
   border: 2px solid rgba(5, 8, 13, 0.12);
   background: rgba(255, 255, 255, 0.84);
+}
+
+.automation-card[open] {
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.automation-card-summary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  padding: 20px;
+  cursor: pointer;
+}
+
+.automation-card-summary::-webkit-details-marker {
+  display: none;
+}
+
+.automation-card-summary-copy h3 {
+  margin: 0 0 6px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.1rem;
+}
+
+.automation-card-summary-copy p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.automation-card-summary-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.automation-card-summary-action {
+  font-weight: 700;
+  color: var(--accent-deep);
+  white-space: nowrap;
+}
+
+.automation-card:not([open]) .automation-card-summary-action {
+  color: var(--muted);
+}
+
+.automation-card-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 700;
+  font-size: 0.86rem;
+  background: rgba(5, 8, 13, 0.08);
+  color: var(--ink);
+}
+
+.automation-card-status.is-enabled {
+  background: rgba(0, 201, 210, 0.14);
+  color: var(--accent-deep);
+}
+
+.automation-card-status.is-disabled {
+  background: rgba(5, 8, 13, 0.08);
+  color: var(--muted);
+}
+
+.automation-card-body {
+  display: grid;
+  grid-template-columns: 1.5fr auto;
+  gap: 18px;
+  padding: 0 20px 20px;
 }
 
 .automation-copy {
@@ -1604,12 +1729,6 @@ body.dark-mode .rules-manual-summary {
 
 .automation-settings-wide {
   grid-column: 1 / -1;
-}
-
-.automation-copy h3 {
-  margin: 0 0 6px;
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 1.1rem;
 }
 
 .automation-copy p,
