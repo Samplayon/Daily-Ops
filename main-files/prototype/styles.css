@@ -2773,8 +2773,20 @@ body[data-theme="dark"] #agent-shell .agent-now-assignment,
 body[data-theme="dark"] #agent-shell .assignment-chip,
 body[data-theme="dark"] #agent-shell .assignment-chip.out,
 body[data-theme="dark"] #agent-shell .assignment-chip.open,
-body[data-theme="dark"] #agent-shell h1 {
-  color: var(--agent-text);
+body[data-theme="dark"] #agent-shell h1,
+body[data-theme="dark"] #agent-shell h2,
+body[data-theme="dark"] #agent-shell h3,
+body[data-theme="dark"] #agent-shell h4,
+body[data-theme="dark"] #agent-shell strong,
+body[data-theme="dark"] #agent-shell summary,
+body[data-theme="dark"] #agent-shell label,
+body[data-theme="dark"] #agent-shell .hero-copy,
+body[data-theme="dark"] #agent-shell .panel,
+body[data-theme="dark"] #agent-shell .hero-card,
+body[data-theme="dark"] #agent-shell .agent-day-details,
+body[data-theme="dark"] #agent-shell .agent-now-card,
+body[data-theme="dark"] #agent-shell .agent-mod-card {
+  color: var(--agent-text) !important;
 }
 
 body[data-theme="dark"] #agent-shell .schedule-badge,
@@ -2791,4 +2803,105 @@ body[data-theme="dark"] #agent-shell .agent-alert-status {
 body[data-theme="dark"] #agent-shell .agent-day-row {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] #agent-shell .hero-copy *,
+body[data-theme="dark"] #agent-shell .hero-card *,
+body[data-theme="dark"] #agent-shell .panel * {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] #agent-shell .person-meta,
+body[data-theme="dark"] #agent-shell .time-subtitle,
+body[data-theme="dark"] #agent-shell .time-count,
+body[data-theme="dark"] #agent-shell .panel-header p,
+body[data-theme="dark"] #agent-shell .hero-text,
+body[data-theme="dark"] #agent-shell .agent-alert-status,
+body[data-theme="dark"] #agent-shell .agent-day-row .person-meta {
+  color: var(--agent-text-soft) !important;
+}
+
+body[data-theme="dark"] #agent-shell .schedule-badge,
+body[data-theme="dark"] #agent-shell .secondary-button,
+body[data-theme="dark"] #agent-shell .hero-back-button,
+body[data-theme="dark"] #agent-shell .portal-input,
+body[data-theme="dark"] #agent-shell select,
+body[data-theme="dark"] #agent-shell .color-picker,
+body[data-theme="dark"] #agent-shell .toggle,
+body[data-theme="dark"] #agent-shell .agent-alert-status {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: var(--agent-text) !important;
+}
+
+body[data-theme="dark"] #agent-shell .assignment-chip,
+body[data-theme="dark"] #agent-shell .agent-now-assignment {
+  background: color-mix(in srgb, var(--agent-accent, #00c9d2) 20%, rgba(255, 255, 255, 0.08) 80%) !important;
+  border-color: color-mix(in srgb, var(--agent-accent, #00c9d2) 30%, rgba(255, 255, 255, 0.08) 70%) !important;
+  color: #f8fcff !important;
+}
+
+.exceptions-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.exceptions-group {
+  display: grid;
+  gap: 10px;
+  border: 2px solid rgba(5, 8, 13, 0.12);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.exceptions-group h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.exceptions-list {
+  display: grid;
+  gap: 10px;
+}
+
+.exception-row {
+  display: grid;
+  gap: 2px;
+}
+
+.exception-row strong {
+  color: var(--ink);
+}
+
+.exception-row span {
+  color: var(--muted);
+}
+
+.reshuffle-preview-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+body[data-theme="dark"] #admin-shell .exceptions-group,
+body[data-theme="dark"] #admin-shell .reshuffle-report-rule-result,
+body[data-theme="dark"] #admin-shell .reshuffle-report-rule,
+body[data-theme="dark"] #admin-shell .reshuffle-report-stat {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] #admin-shell .exception-row strong,
+body[data-theme="dark"] #admin-shell .reshuffle-report-rule-result-rule,
+body[data-theme="dark"] #admin-shell .reshuffle-report-section h4 {
+  color: var(--ink);
+}
+
+body[data-theme="dark"] #admin-shell .exception-row span,
+body[data-theme="dark"] #admin-shell .reshuffle-report-rule-result-meta,
+body[data-theme="dark"] #admin-shell .reshuffle-report-rule-notes {
+  color: var(--muted);
 }

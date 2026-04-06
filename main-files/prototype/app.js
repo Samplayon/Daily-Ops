@@ -2357,6 +2357,8 @@ const shiftEditorList = document.getElementById("shift-editor-list");
 const skillsMatrix = document.getElementById("skills-matrix");
 const schedulingRulesCard = document.getElementById("scheduling-rules-card");
 const automationsList = document.getElementById("automations-list");
+const todayExceptionsCard = document.getElementById("today-exceptions-card");
+const reshufflePreviewCard = document.getElementById("reshuffle-preview-card");
 const reshuffleReportCard = document.getElementById("reshuffle-report-card");
 const adminPasswordCard = document.getElementById("admin-password-card");
 const auditLogPanel = document.getElementById("audit-log-panel");
@@ -2484,6 +2486,104 @@ function saveReshuffleReport(report) {
   } catch {
     // Ignore storage failures so the UI still works.
   }
+}
+
+function isReshufflePlan(plan) {
+  return Boolean(plan && (plan.automationId === "rule-based-reshuffle" || plan.title === "Rule-based schedule reshuffle"));
+}
+
+function getVisibleTeamByIdMap() {
+  return new Map(getAdminVisibleTeam(team).map((person) => [personId(person), person]));
+}
+
+function renderTodayExceptionsCard() {
+  if (!todayExceptionsCard) return;
+
+  const visibleTeam = getAdminVisibleTeam(team);
+  const visibleMap = new Map(visibleTeam.map((person) => [personId(person), person]));
+  const overrides = loadShiftOverrides();
+  const todayKey = getTodayKey();
+  const todayOverrideEntries = Object.entries(overrides.daily?.[todayKey] || {})
+    .map(([key, value]) => ({ key, value, person: visibleMap.get(key) }))
+    .filter((entry) => entry.person && entry.value?.schedule);
+  const permanentOverrideEntries = Object.entries(overrides.permanent || {})
+    .map(([key, value]) => ({ key, value, person: visibleMap.get(key) }))
+    .filter((entry) => entry.person && entry.value?.schedule);
+  const outPeople = visibleTeam.filter(personIsOut);
+
+  const totalExceptions = outPeople.length + todayOverrideEntries.length + permanentOverrideEntries.length;
+
+  todayExceptionsCard.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <h2>Today Exceptions</h2>
+        <p>See who is out and which schedules were changed before you run automations.</p>
+      </div>
+      <span class="panel-badge">${totalExceptions} active</span>
+    </div>
+    <div class="exceptions-grid">
+      <section class="exceptions-group">
+        <h4>Out Today</h4>
+        ${outPeople.length
+          ? `<div class="exceptions-list">${outPeople.map((person) => `<div class="exception-row"><strong>${person.name}</strong><span>${person.manager || "Unknown manager"}</span></div>`).join("")}</div>`
+          : `<div class="empty-state">No one is marked out today.</div>`}
+      </section>
+      <section class="exceptions-group">
+        <h4>Today-Only Shift Changes</h4>
+        ${todayOverrideEntries.length
+          ? `<div class="exceptions-list">${todayOverrideEntries.map((entry) => `<div class="exception-row"><strong>${entry.person.name}</strong><span>${entry.value.schedule}</span></div>`).join("")}</div>`
+          : `<div class="empty-state">No today-only shift overrides right now.</div>`}
+      </section>
+      <section class="exceptions-group">
+        <h4>Permanent Shift Defaults</h4>
+        ${permanentOverrideEntries.length
+          ? `<div class="exceptions-list">${permanentOverrideEntries.map((entry) => `<div class="exception-row"><strong>${entry.person.name}</strong><span>${entry.value.schedule}</span></div>`).join("")}</div>`
+          : `<div class="empty-state">No permanent default shifts have been changed.</div>`}
+      </section>
+    </div>
+  `;
+}
+
+function renderReshufflePreviewCard() {
+  if (!reshufflePreviewCard) return;
+
+  if (!isReshufflePlan(pendingPlan)) {
+    reshufflePreviewCard.innerHTML = `
+      <div class="panel-header">
+        <div>
+          <h2>Reshuffle Preview</h2>
+          <p>Run the rule-based reshuffle to stage changes here before anything applies to the board.</p>
+        </div>
+      </div>
+      <div class="reshuffle-report-empty">No reshuffle preview is staged right now.</div>
+    `;
+    return;
+  }
+
+  const previewPlan = pendingPlan;
+  reshufflePreviewCard.innerHTML = `
+    <div class="panel-header">
+      <div>
+        <h2>Reshuffle Preview</h2>
+        <p>Review the staged schedule updates before applying them to the live board.</p>
+      </div>
+      <span class="panel-badge">${previewPlan.actions.length} change${previewPlan.actions.length === 1 ? "" : "s"}</span>
+    </div>
+    <div class="reshuffle-report-summary">${previewPlan.summary || "Rule-based reshuffle preview is ready."}</div>
+    <div class="reshuffle-preview-actions">
+      <button type="button" id="automation-preview-apply">Apply Preview</button>
+      <button type="button" class="secondary-button" id="automation-preview-discard">Discard Preview</button>
+    </div>
+    <div class="reshuffle-report-section">
+      <h4>Planned changes</h4>
+      <div class="plan-list">
+        ${previewPlan.actions.map((action) => `<div class="plan-item">${describeAction(action)}</div>`).join("")}
+      </div>
+    </div>
+  `;
+
+  reshufflePreviewCard.querySelector('#automation-preview-apply')?.addEventListener('click', applyPendingPlan);
+  reshufflePreviewCard.querySelector('#automation-preview-discard')?.addEventListener('click', discardPendingPlan);
 }
 
 function renderReshuffleReportCard() {
@@ -4973,12 +5073,14 @@ async function runAutomationTest(automationId) {
   if (automation.id === "rule-based-reshuffle") {
     try {
       const plan = await buildRuleBasedReshufflePlan();
-      plan.actions.forEach(applyAction);
+      plan.automationId = automation.id;
+      pendingPlan = plan;
       lastReviewedPlan = cloneData(plan);
+      activeWorkspaceTab = "automations";
       automationTestState = {
         ...automationTestState,
         [automationId]: {
-          message: `Reshuffled the schedule using ${plan.ruleCount} saved rule${plan.ruleCount === 1 ? "" : "s"}.`,
+          message: `Built a reshuffle preview from ${plan.ruleCount} saved rule${plan.ruleCount === 1 ? "" : "s"}. Review it before applying.`,
           timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
         },
       };
@@ -4994,15 +5096,7 @@ async function runAutomationTest(automationId) {
         ruleResults: plan.ruleResults || [],
         details: plan.details || [],
       });
-      addMessage("assistant", `I reshuffled today’s schedule using the saved All, Support, and ACO rules. ${plan.actions.length} change${plan.actions.length === 1 ? "" : "s"} were applied.`);
-      await appendAuditLogEntry({
-        actionType: "automation-reshuffle",
-        summary: `Rule-based schedule reshuffle run by ${getCurrentAdminProfile().name}`,
-        details: [
-          `${plan.actions.length} change${plan.actions.length === 1 ? "" : "s"} applied`,
-          ...plan.details.slice(0, 10),
-        ],
-      });
+      addMessage("assistant", `I built a reshuffle preview using the saved All, Support, and ACO rules. Review the staged changes in Automations before you apply them.`);
     } catch (error) {
       automationTestState = {
         ...automationTestState,
@@ -5090,6 +5184,7 @@ function applyAgentPreferences() {
   agentShell.style.removeProperty("--agent-accent");
   agentShell.style.removeProperty("--agent-accent-soft");
   agentShell.style.removeProperty("--agent-block-bg");
+  agentShell.style.removeProperty("--agent-block-soft");
   agentShell.style.removeProperty("--agent-text");
   agentShell.style.removeProperty("--agent-text-soft");
 
@@ -6887,13 +6982,22 @@ async function buildRuleBasedReshufflePlan() {
     const result = ruleResultMap.get(makeRuleKey(savedRule.scope, savedRule.rule));
     if (!result.notes.length) {
       if (result.status === 'Reviewed - waiting for result') {
-        result.status = 'Reviewed - no changes needed';
+        if (result.reviewedBlocks > 0) {
+          result.status = 'Reviewed - already satisfied';
+          result.notes = ['The board already matched this rule across the reviewed blocks, so no moves were needed.'];
+        } else {
+          result.status = 'Not used - rule wording not recognized';
+          result.notes = ['This saved rule did not match a scheduler pattern yet, so it stayed in review only.'];
+        }
       }
       if (result.status.includes('fairness')) {
         result.notes = ['Used earlier week archive history to weight phone choices more fairly.'];
       } else if (result.status.includes('skill guardrail')) {
         result.notes = ['Used as a guardrail so people were only assigned to work they are qualified to do.'];
       }
+    }
+    if (!result.changeCount && result.reviewedBlocks > 0 && result.status === 'Applied') {
+      result.status = 'Reviewed - already satisfied';
     }
     result.notes = result.notes.slice(0, 4);
     return result;
@@ -7551,8 +7655,10 @@ function applyPendingPlan() {
   lastReviewedPlan = cloneData(pendingPlan);
   pendingPlan = null;
   void appendAuditLogEntry({
-    actionType: "plan-applied",
-    summary: `Applied plan: ${appliedPlan.title}`,
+    actionType: isReshufflePlan(appliedPlan) ? "automation-reshuffle" : "plan-applied",
+    summary: isReshufflePlan(appliedPlan)
+      ? `Applied reshuffle preview from ${getCurrentAdminProfile().name}`
+      : `Applied plan: ${appliedPlan.title}`,
     details: [
       `${appliedPlan.actions.length} change${appliedPlan.actions.length === 1 ? "" : "s"}`,
       ...(appliedPlan.details || []),
@@ -8619,6 +8725,8 @@ function render() {
   renderSchedulingRules();
   renderAdminPasswordManager();
   renderAutomations();
+  renderTodayExceptionsCard();
+  renderReshufflePreviewCard();
   renderReshuffleReportCard();
   renderAuditLog();
   renderArchives();
