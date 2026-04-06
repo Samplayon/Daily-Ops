@@ -4282,11 +4282,7 @@ function getThemePreferenceKey() {
 }
 
 function getSavedTheme() {
-  try {
-    return window.localStorage.getItem(getThemePreferenceKey()) || "light";
-  } catch {
-    return "light";
-  }
+  return "light";
 }
 
 function setTheme(theme) {
@@ -4294,9 +4290,6 @@ function setTheme(theme) {
   if (themeToggleButton) {
     themeToggleButton.textContent = theme === "dark" ? "Light mode" : "Dark mode";
   }
-  try {
-    window.localStorage.setItem(getThemePreferenceKey(), document.body.dataset.theme);
-  } catch {}
   if (selectedAgentId && !agentShell.classList.contains("hidden")) {
     applyAgentPreferences();
   }
