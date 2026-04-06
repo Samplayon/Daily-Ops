@@ -2456,7 +2456,7 @@ let pendingPlan = null;
 let lastReviewedPlan = null;
 let pendingQuestion = null;
 let lastInsight = null;
-let assistantMode = backendAvailable ? "openai" : "local";
+let assistantMode = "local";
 let activeWorkspaceTab = "board";
 let automationTestState = {};
 let archiveLibrary = {
@@ -7776,18 +7776,8 @@ async function submitChatRequest() {
       }
     }
 
-    let plan;
-    const localPlan = buildPlanFromCommand(text);
-
-    if (!localPlan.error || localPlan.question) {
-      plan = localPlan;
-      assistantMode = "local";
-    } else if (backendAvailable) {
-      plan = await requestRemotePlan(text);
-    } else {
-      plan = localPlan;
-      assistantMode = "local";
-    }
+    assistantMode = "local";
+    const plan = buildPlanFromCommand(text);
 
     if (plan.error) {
       pendingPlan = null;
@@ -7799,12 +7789,7 @@ async function submitChatRequest() {
       pendingPlan = plan;
       lastReviewedPlan = cloneData(plan);
       const assistantText = summarizePlanForChat(plan);
-      addMessage(
-        "assistant",
-        assistantMode === "openai"
-          ? `${assistantText} This draft came from the OpenAI planner.`
-          : assistantText
-      );
+      addMessage("assistant", assistantText);
     }
   } catch (error) {
     pendingPlan = null;
@@ -7814,8 +7799,11 @@ async function submitChatRequest() {
       pendingPlan = fallbackPlan;
       lastReviewedPlan = cloneData(fallbackPlan);
       addMessage("assistant", summarizePlanForChat(fallbackPlan));
+    } else if (fallbackPlan?.question) {
+      pendingQuestion = fallbackPlan;
+      addMessage("assistant", fallbackPlan.question);
     } else {
-      addMessage("assistant", `The OpenAI planner was unavailable. ${error.message}`);
+      addMessage("assistant", error?.message || "I couldn't turn that into a schedule action yet. Try a more direct request like 'Move Adam Nye to SSA State Assignments all day.'");
     }
   } finally {
     sendMessageButton.disabled = false;
