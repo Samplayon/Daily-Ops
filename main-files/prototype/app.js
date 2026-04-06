@@ -2224,6 +2224,32 @@ const assignmentPalette = [
   "#0f766e",
 ];
 
+
+const assignmentShortLabels = {
+  "Tier 2 Phones": "Tier 2 Phones",
+  "School Support Queue": "School Support",
+  "FST Queue": "FST Queue",
+  "Both Queues": "Both Queues",
+  "Data Requests": "Data Requests",
+  Disputes: "Disputes",
+  Calibrations: "Calibrations",
+  "Game Reports": "Game Reports",
+  Training: "Training",
+  "OOO/Sick/PTO": "OOO/Sick/PTO",
+  Flex: "Flex",
+  "Bugs Escalation": "Bugs Escalation",
+  "Login Issues": "Login Issues",
+  "All Channels": "All Channels",
+  MOD: "MOD",
+};
+
+function getAssignmentChartLabel(assignment, count, width) {
+  const shortLabel = assignmentShortLabels[assignment] || assignment;
+  if (width > 16) return `${assignment} (${count})`;
+  if (width > 9) return `${shortLabel} (${count})`;
+  return shortLabel;
+}
+
 function looksLikeManagerName(value) {
   const text = String(value || "").trim();
   if (!text) return false;
@@ -6490,7 +6516,7 @@ async function getLatestPhoneHistoryContext() {
   const counts = {};
   const previousDayOutNames = new Set();
   if (!backendAvailable) {
-    return { counts, previousDayOutNames };
+    return { counts, previousDayOutNames, archiveName: null, archiveDateKey: null };
   }
   if (!archiveLibrary.archives?.length) {
     await refreshArchiveLibrary();
@@ -6509,21 +6535,21 @@ async function getLatestPhoneHistoryContext() {
     .sort((a, b) => b.dateKey.localeCompare(a.dateKey))[0];
 
   if (!latestArchive) {
-    return { counts, previousDayOutNames };
+    return { counts, previousDayOutNames, archiveName: null, archiveDateKey: null };
   }
 
   try {
     const csvText = await loadArchiveCsvText(latestArchive.archive);
     const rows = parseCsvDocument(csvText);
     if (rows.length < 2) {
-      return { counts, previousDayOutNames };
+      return { counts, previousDayOutNames, archiveName: latestArchive.archive.name, archiveDateKey: latestArchive.dateKey };
     }
     const [headers, ...bodyRows] = rows;
     const columnIndex = Object.fromEntries(headers.map((header, index) => [header, index]));
     const assignmentIndex = columnIndex["Assignment"];
     const nameIndex = columnIndex["Name"];
     if (!Number.isInteger(assignmentIndex) || !Number.isInteger(nameIndex)) {
-      return { counts, previousDayOutNames };
+      return { counts, previousDayOutNames, archiveName: latestArchive.archive.name, archiveDateKey: latestArchive.dateKey };
     }
 
     bodyRows.forEach((row) => {
@@ -6541,7 +6567,7 @@ async function getLatestPhoneHistoryContext() {
     // Ignore archive rows that cannot be read so the reshuffle can still proceed.
   }
 
-  return { counts, previousDayOutNames };
+  return { counts, previousDayOutNames, archiveName: latestArchive.archive.name, archiveDateKey: latestArchive.dateKey };
 }
 
 function setAssignmentOnTeam(teamData, action) {
@@ -7035,6 +7061,36 @@ async function buildRuleBasedReshufflePlan() {
     result.notes = result.notes.slice(0, 4);
     return result;
   });
+
+  const supportPhoneReviewedBlocks = Array.from(new Set(coverageRules.filter((rule) => rule.assignment === "Tier 2 Phones" && ["all", "support"].includes(rule.scope)).flatMap((rule) => rule.blockIndexes || []))).length;
+  const supportPhoneChangeCount = actions.filter((action) => {
+    const sourcePerson = team.find((entry) => personId(entry) === action.personId);
+    return sourcePerson?.teamGroup === "core" && action.assignment === "Tier 2 Phones";
+  }).length;
+
+  if (supportPhoneReviewedBlocks > 0) {
+    const usedArchiveFairness = Boolean(phoneHistoryContext.archiveName);
+    ruleResults.push({
+      scope: "support",
+      rule: "Built-in support phone fairness",
+      label: "Phone fairness",
+      assignment: "Tier 2 Phones",
+      reviewedBlocks: supportPhoneReviewedBlocks,
+      changeCount: supportPhoneChangeCount,
+      status: usedArchiveFairness
+        ? (supportPhoneChangeCount > 0 ? "Applied" : "Reviewed - archive fairness weighting used")
+        : "Reviewed - no prior archive available",
+      notes: usedArchiveFairness
+        ? [
+            "Reviewed latest archive: " + phoneHistoryContext.archiveName + " before choosing Support phone coverage.",
+            "Weighted Support Tier 2 Phones selections to keep daily phone time closer to 3 hours when staffing allowed.",
+            "Used prior-day PTO and OOO history to spread heavier phone time more fairly when possible.",
+          ]
+        : [
+            "No earlier archive was available, so the reshuffle used current-day staffing only for Support phone coverage.",
+          ],
+    });
+  }
 
   const savedRuleCount = allRuleText.length;
   const actionableRuleCount = coverageRules.length + (queueRoutingResult.results.length ? queueRoutingResult.results.length : 0);
@@ -8166,7 +8222,7 @@ function renderChart(filteredTeam) {
           .sort((a, b) => b[1] - a[1])
           .map(([assignment, count]) => {
             const width = total ? (count / total) * 100 : 0;
-            const label = `${assignment} (${count})`;
+            const label = getAssignmentChartLabel(assignment, count, width);
             return `
               <div class="chart-segment" style="width:${width}%; background:${assignmentColors[assignment] || "#6b7280"}">
                 <span>${label}</span>
@@ -8244,7 +8300,7 @@ function renderAgentCoverageChart(person) {
           .sort((a, b) => b[1] - a[1])
           .map(([assignment, count]) => {
             const width = total ? (count / total) * 100 : 0;
-            const label = width > 16 ? `${assignment} (${count})` : count;
+            const label = getAssignmentChartLabel(assignment, count, width);
             return `
               <div class="chart-segment" style="width:${width}%; background:${assignmentColors[assignment] || "#6b7280"}">
                 <span>${label}</span>
