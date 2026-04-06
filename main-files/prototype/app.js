@@ -2462,8 +2462,17 @@ let adminPasswordSaveState = {
 };
 let latestReshuffleReport = loadReshuffleReport();
 
+function getDateKeyForTimezone(date = new Date(), timeZone = "America/New_York") {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
 function getTodayKey() {
-  return new Date().toISOString().slice(0, 10);
+  return getDateKeyForTimezone(new Date(), "America/New_York");
 }
 
 function loadReshuffleReport() {
@@ -5035,7 +5044,7 @@ async function saveArchiveConfig(partial = {}) {
 
 function queueArchiveSnapshotSync() {
   if (!backendAvailable) return;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getTodayKey();
   const csv = buildArchiveCsvDocument();
   const signature = `${today}:${csv.length}:${team.map((person) => person.assignments.map((entry) => entry[0]).join("|")).join("||")}`;
   if (signature === lastArchiveSyncSignature) return;

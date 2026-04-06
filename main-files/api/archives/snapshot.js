@@ -1,4 +1,4 @@
-const { processArchiveBacklog, readJsonBody, saveArchiveSnapshot, sendArchiveError, sendJson } = require("../_lib/core");
+const { getDateKeyForTimezone, processArchiveBacklog, readJsonBody, saveArchiveSnapshot, sendArchiveError, sendJson } = require("../_lib/core");
 
 module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
@@ -7,7 +7,7 @@ module.exports = async function handler(req, res) {
 
   try {
     const data = await readJsonBody(req);
-    const dateKey = data.date || new Date().toISOString().slice(0, 10);
+    const dateKey = data.date || getDateKeyForTimezone(new Date(), "America/New_York");
     const csv = data.html || "";
     await saveArchiveSnapshot(dateKey, csv);
     const archived = await processArchiveBacklog();

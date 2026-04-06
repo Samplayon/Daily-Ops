@@ -169,6 +169,15 @@ function formatArchiveTimestamp(value) {
   }
 }
 
+function getDateKeyForTimezone(date = new Date(), timeZone = "America/New_York") {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
 function getSupabaseConfig() {
   const url = (process.env.SUPABASE_URL || "").trim().replace(/\/$/, "");
   const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
@@ -663,6 +672,7 @@ module.exports = {
   defaultArchiveSettings,
   downloadObject,
   getArchiveStatus,
+  getDateKeyForTimezone,
   getSupabaseConfig,
   processArchiveBacklog,
   readAdminPasswords,
