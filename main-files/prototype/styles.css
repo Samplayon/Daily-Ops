@@ -189,14 +189,12 @@ body[data-theme="dark"] #admin-shell .shift-scope-option {
 
 body[data-theme="dark"] #admin-shell .time-header,
 body[data-theme="dark"] #admin-shell .archive-preview-table th,
-body[data-theme="dark"] #admin-shell .skills-table th {
+body[data-theme="dark"] #admin-shell .skills-person-summary {
   background: linear-gradient(135deg, rgba(0, 201, 210, 0.12), rgba(255, 255, 255, 0.04));
   border-color: rgba(255, 255, 255, 0.08);
 }
 
 body[data-theme="dark"] #admin-shell .assignment-row,
-body[data-theme="dark"] #admin-shell .skills-table td,
-body[data-theme="dark"] #admin-shell .skills-table th,
 body[data-theme="dark"] #admin-shell .archive-preview-table td,
 body[data-theme="dark"] #admin-shell .archive-preview-table th,
 body[data-theme="dark"] #admin-shell .agent-day-list {
@@ -205,6 +203,29 @@ body[data-theme="dark"] #admin-shell .agent-day-list {
 
 body[data-theme="dark"] #admin-shell .assignment-row:hover {
   background: rgba(0, 201, 210, 0.08);
+}
+
+body[data-theme="dark"] #admin-shell .skills-person-card,
+body[data-theme="dark"] #admin-shell .skills-person-body,
+body[data-theme="dark"] #admin-shell .skill-pill-toggle span {
+  background: rgba(16, 23, 33, 0.94);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+}
+
+body[data-theme="dark"] #admin-shell .skills-person-action {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+}
+
+body[data-theme="dark"] #admin-shell .skills-person-body {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] #admin-shell .skill-pill-toggle input:checked + span {
+  background: rgba(0, 201, 210, 0.16);
+  border-color: rgba(0, 201, 210, 0.5);
+  color: var(--ink-strong);
 }
 
 body[data-theme="dark"] #admin-shell .time-header h3,
@@ -2044,33 +2065,38 @@ body.dark-mode .rules-manual-summary {
 }
 
 .skills-matrix {
-  min-width: 760px;
+  min-width: 0;
 }
 
-.skills-table {
-  width: 100%;
-  border-collapse: collapse;
+.skills-people-list {
+  display: grid;
+  gap: 14px;
 }
 
-.skills-table th,
-.skills-table td {
-  padding: 14px 16px;
-  border-bottom: 1px solid rgba(5, 8, 13, 0.08);
-  text-align: left;
-  vertical-align: middle;
+.skills-person-card {
+  border: 2px solid rgba(5, 8, 13, 0.12);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.88);
+  overflow: hidden;
 }
 
-.skills-table th {
-  position: sticky;
-  top: 0;
-  background: #f6fafb;
-  z-index: 1;
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 0.88rem;
+.skills-person-summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  cursor: pointer;
 }
 
-.skills-name {
-  min-width: 220px;
+.skills-person-summary::-webkit-details-marker {
+  display: none;
+}
+
+.skills-person-copy strong {
+  display: block;
+  font-size: 1.02rem;
 }
 
 .skills-role {
@@ -2080,15 +2106,73 @@ body.dark-mode .rules-manual-summary {
   margin-top: 4px;
 }
 
-.skill-toggle {
+.skills-person-meta {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
 }
 
-.skill-toggle input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent-deep);
+.skills-person-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(5, 8, 13, 0.06);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.skills-person-body {
+  padding: 0 22px 22px;
+  border-top: 1px solid rgba(5, 8, 13, 0.08);
+}
+
+.skills-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  padding-top: 18px;
+}
+
+.skill-pill-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.skill-pill-toggle input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.skill-pill-toggle span {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 2px solid rgba(5, 8, 13, 0.1);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+  font-weight: 600;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.skill-pill-toggle input:checked + span {
+  border-color: rgba(0, 201, 210, 0.44);
+  background: rgba(0, 201, 210, 0.14);
+  color: var(--ink-strong);
+  box-shadow: inset 0 0 0 1px rgba(0, 201, 210, 0.12);
+}
+
+.skill-pill-toggle input:focus-visible + span {
+  outline: 3px solid rgba(0, 122, 255, 0.24);
+  outline-offset: 2px;
 }
 
 .assignment-graph-header {

@@ -8325,46 +8325,57 @@ function renderArchives() {
 }
 
 function renderSkillsMatrix(filteredTeam = getSkillsMatrixTeam()) {
+  const sortedTeam = [...filteredTeam].sort((left, right) => left.name.localeCompare(right.name));
   skillsMatrix.innerHTML = `
-    <table class="skills-table">
-      <thead>
-        <tr>
-          <th class="skills-name">Team Member</th>
-          ${editableSkillAssignments.map((skill) => `<th>${skill}</th>`).join("")}
-        </tr>
-      </thead>
-      <tbody>
-        ${filteredTeam
-          .map(
-            (person) => `
-              <tr>
-                <td class="skills-name">
+    <div class="skills-people-list">
+      ${sortedTeam
+        .map(
+          (person, index) => `
+            <details class="skills-person-card" ${index === 0 ? "open" : ""}>
+              <summary class="skills-person-summary">
+                <div class="skills-person-copy">
                   <strong>${person.name}</strong>
                   <span class="skills-role">${person.title} • ${person.teamGroup === "aco" ? "ACO" : "Support"}</span>
-                </td>
-                ${editableSkillAssignments
-                  .map(
-                    (skill) => `
-                      <td>
-                        <label class="skill-toggle">
+                </div>
+                <div class="skills-person-meta">
+                  <span class="skills-person-count">${(person.skills || []).length} assignments</span>
+                  <span class="skills-person-action">Expand</span>
+                </div>
+              </summary>
+              <div class="skills-person-body">
+                <div class="skills-checkbox-grid">
+                  ${editableSkillAssignments
+                    .map(
+                      (skill) => `
+                        <label class="skill-pill-toggle">
                           <input
                             type="checkbox"
                             data-person-id="${personId(person)}"
                             data-skill="${skill}"
                             ${personHasSkill(person, skill) ? "checked" : ""}
                           />
+                          <span>${skill}</span>
                         </label>
-                      </td>
-                    `
-                  )
-                  .join("")}
-              </tr>
-            `
-          )
-          .join("")}
-      </tbody>
-    </table>
+                      `
+                    )
+                    .join("")}
+                </div>
+              </div>
+            </details>
+          `
+        )
+        .join("")}
+    </div>
   `;
+
+  skillsMatrix.querySelectorAll(".skills-person-card").forEach((card) => {
+    const action = card.querySelector(".skills-person-action");
+    const syncAction = () => {
+      if (action) action.textContent = card.open ? "Collapse" : "Expand";
+    };
+    syncAction();
+    card.addEventListener("toggle", syncAction);
+  });
 
   skillsMatrix.querySelectorAll("input[type='checkbox']").forEach((checkbox) => {
     checkbox.addEventListener("change", (event) => {
