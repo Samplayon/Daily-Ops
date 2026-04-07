@@ -2904,6 +2904,31 @@ function formatScheduleValue(startHour, endHour) {
   return `${formatShiftHour(startHour)} - ${formatShiftHour(endHour)}`;
 }
 
+function deriveDisplayedWorkSchedule(person, profile = getStoredScheduleProfile(person)) {
+  const primarySchedule = profile?.schedule || person.schedule || "";
+  if (!primarySchedule) return "Off";
+  if (/^off$/i.test(primarySchedule)) return "Off";
+  if (/ooo|pto|sick/i.test(primarySchedule)) return "OOO/Sick/PTO";
+  if (parseScheduleWindow(primarySchedule)) return primarySchedule;
+
+  const fallbackSchedule = profile?.baseSchedule || getInitialPersonRecord(person)?.schedule || person.schedule || "";
+  if (parseScheduleWindow(fallbackSchedule)) return fallbackSchedule;
+
+  const workedIndexes = timeBlocks
+    .map((block, blockIndex) => {
+      const assignment = person.assignments[blockIndex]?.[0] || "";
+      return assignment && assignment !== "Open" && assignment !== "OOO/Sick/PTO" ? blockIndex : null;
+    })
+    .filter((value) => value !== null);
+
+  if (!workedIndexes.length) return primarySchedule || fallbackSchedule || "Off";
+
+  const firstBlock = timeBlocks[workedIndexes[0]];
+  const lastBlock = timeBlocks[workedIndexes[workedIndexes.length - 1]];
+  if (!firstBlock || !lastBlock) return primarySchedule || fallbackSchedule || "Off";
+  return formatScheduleValue(firstBlock.start, lastBlock.end);
+}
+
 function applyScheduleToPerson(person, schedule) {
   const workedBlocks = getWorkedBlockIndexesForSchedule(schedule);
   const previousAssignments = person.assignments.map(([assignment, phones]) => [assignment, phones]);
@@ -5149,7 +5174,7 @@ function renderArchivePreviewTable(archive, csvText) {
                   </div>
                   <div class="assignment-main">
                     <span class="assignment-chip ${person.assignment === "OOO/Sick/PTO" ? "out" : person.assignment === "Open" ? "open" : ""}">${person.assignment}</span>
-                    <div class="schedule-badge">${person.schedule}</div>
+                    <div class="schedule-badge">${displayedSchedule}</div>
                   </div>
                 </article>
               `
@@ -8396,7 +8421,8 @@ function renderChart(filteredTeam) {
         <tbody>
           ${visiblePeople
             .map((person) => {
-              const currentShiftWindow = parseScheduleWindow(person.schedule) || {
+              const displayedSchedule = deriveDisplayedWorkSchedule(person);
+              const currentShiftWindow = parseScheduleWindow(displayedSchedule) || {
                 normalizedStart: 8,
                 normalizedEnd: 17,
               };
@@ -8461,7 +8487,7 @@ function renderChart(filteredTeam) {
                   <td class="sticky-col sticky-title spreadsheet-title-cell">${person.title}</td>
                   <td class="sticky-col sticky-manager spreadsheet-manager-cell">${person.manager}</td>
                   <td class="sticky-col sticky-schedule spreadsheet-schedule-cell">
-                    <button type="button" class="secondary-button spreadsheet-shift-button" data-person-id="${personId(person)}">${person.schedule}</button>
+                    <button type="button" class="secondary-button spreadsheet-shift-button" data-person-id="${personId(person)}">${displayedSchedule}</button>
                   </td>
                   ${rowCells}
                 </tr>
@@ -8688,7 +8714,8 @@ function renderBoard(filteredTeam) {
           const isEditing = editingBoardRow === rowKey;
           const isEditingShift = editingShiftPersonId === personId(person);
           const manualOptions = getManualAssignmentOptions(person);
-          const currentShiftWindow = parseScheduleWindow(person.schedule) || {
+          const displayedSchedule = deriveDisplayedWorkSchedule(person);
+          const currentShiftWindow = parseScheduleWindow(displayedSchedule) || {
             normalizedStart: 8,
             normalizedEnd: 17,
           };
@@ -8736,7 +8763,7 @@ function renderBoard(filteredTeam) {
                     `
                 }
                 <div class="assignment-row-footer">
-                  <div class="schedule-badge">${person.schedule}</div>
+                  <div class="schedule-badge">${displayedSchedule}</div>
                   <button type="button" class="secondary-button shift-edit-button" data-person-id="${personId(person)}">Edit Shift</button>
                 </div>
                 ${
