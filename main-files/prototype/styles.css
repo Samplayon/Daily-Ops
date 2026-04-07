@@ -2963,6 +2963,17 @@ body[data-theme="dark"] #agent-shell .agent-now-card {
   border-color: rgba(255, 255, 255, 0.08);
 }
 
+body[data-theme="dark"] #agent-shell.has-custom-bg .hero-copy,
+body[data-theme="dark"] #agent-shell.has-custom-bg .hero-card,
+body[data-theme="dark"] #agent-shell.has-custom-bg .panel,
+body[data-theme="dark"] #agent-shell.has-custom-bg .agent-day-details,
+body[data-theme="dark"] #agent-shell.has-custom-bg .agent-mod-card,
+body[data-theme="dark"] #agent-shell.has-custom-bg .agent-now-card {
+  background: rgba(16, 23, 33, 0.68);
+  border-color: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(14px);
+}
+
 body[data-theme="dark"] #agent-shell .hero-copy,
 body[data-theme="dark"] #agent-shell .panel,
 body[data-theme="dark"] #agent-shell .agent-day-details,

@@ -138,18 +138,44 @@ function snapshotObjectForDate(dateKey) {
   return `${SNAPSHOT_PREFIX}${archiveFilenameForDate(dateKey)}`;
 }
 
+function addDaysToDateKey(dateKey, days = 0) {
+  const [year, month, day] = String(dateKey).split("-").map(Number);
+  const value = new Date(Date.UTC(year, month - 1, day + Number(days || 0), 12, 0, 0));
+  return getDateKeyForTimezone(value, "UTC");
+}
+
+function getTimeZoneOffsetMinutes(date, timeZone = "America/New_York") {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "shortOffset",
+  }).formatToParts(date);
+  const offsetText = parts.find((part) => part.type === "timeZoneName")?.value || "GMT+0";
+  const match = offsetText.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+  if (!match) return 0;
+  const [, sign, hoursText, minutesText = "00"] = match;
+  const total = Number(hoursText) * 60 + Number(minutesText);
+  return sign === "-" ? -total : total;
+}
+
+function buildDateForTimezone(dateKey, timeString, timeZone = "America/New_York") {
+  const [year, month, day] = String(dateKey).split("-").map(Number);
+  const [hourText = "00", minuteText = "00"] = String(timeString || "00:00").split(":");
+  const utcGuess = new Date(Date.UTC(year, month - 1, day, Number(hourText), Number(minuteText), 0, 0));
+  const offsetMinutes = getTimeZoneOffsetMinutes(utcGuess, timeZone);
+  return new Date(utcGuess.getTime() - offsetMinutes * 60_000);
+}
+
 function computeNextArchiveRun(now, settings) {
-  const [hourText = "00", minuteText = "00"] = String(settings.time || "00:00").split(":");
-  const candidate = new Date(now);
-  candidate.setHours(Number(hourText), Number(minuteText), 0, 0);
-  if (candidate <= now) candidate.setDate(candidate.getDate() + 1);
+  const todayKey = getDateKeyForTimezone(now, "America/New_York");
+  let candidate = buildDateForTimezone(todayKey, settings.time || "00:00", "America/New_York");
+  if (candidate <= now) {
+    candidate = buildDateForTimezone(addDaysToDateKey(todayKey, 1), settings.time || "00:00", "America/New_York");
+  }
   return candidate;
 }
 
 function scheduledArchiveDueAt(dateKey, timeString) {
-  const [year, month, day] = String(dateKey).split("-").map(Number);
-  const [hourText = "00", minuteText = "00"] = String(timeString || "00:00").split(":");
-  return new Date(year, month - 1, day + 1, Number(hourText), Number(minuteText), 0, 0);
+  return buildDateForTimezone(addDaysToDateKey(dateKey, 1), timeString || "00:00", "America/New_York");
 }
 
 function formatArchiveTimestamp(value) {

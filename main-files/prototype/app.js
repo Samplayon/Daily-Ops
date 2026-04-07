@@ -4435,17 +4435,56 @@ function loadAgentPreferences(agentId) {
 }
 
 function saveAgentPreferences(agentId, preferences) {
-  if (!agentId) return;
-  window.localStorage.setItem(getAgentPreferenceKey(agentId), JSON.stringify(preferences));
+  if (!agentId) return false;
+  try {
+    window.localStorage.setItem(getAgentPreferenceKey(agentId), JSON.stringify(preferences));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function saveCurrentAgentPreferences(partial) {
-  if (!selectedAgentId) return;
+  if (!selectedAgentId) return false;
   const current = loadAgentPreferences(selectedAgentId);
-  saveAgentPreferences(selectedAgentId, {
+  return saveAgentPreferences(selectedAgentId, {
     ...current,
     ...partial,
   });
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onerror = () => reject(new Error("Could not read that image."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Could not load that image."));
+    image.src = src;
+  });
+}
+
+async function createStoredAgentBackground(file) {
+  const source = await readFileAsDataUrl(file);
+  const image = await loadImageElement(source);
+  const maxDimension = 1600;
+  const scale = Math.min(1, maxDimension / image.width, maxDimension / image.height);
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) return source;
+  context.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", 0.82);
 }
 
 function defaultAutomationPreferences() {
@@ -5373,7 +5412,7 @@ function applyAgentPreferences() {
   }
   if (preferences.image) {
     agentShell.classList.add("has-custom-bg");
-    agentShell.style.backgroundImage = `linear-gradient(rgba(255,255,255,0.08), rgba(255,255,255,0.08)), url('${preferences.image}')`;
+    agentShell.style.backgroundImage = `linear-gradient(rgba(255,255,255,0.05), rgba(255,255,255,0.05)), url('${preferences.image}')`;
     agentShell.style.backgroundSize = "cover";
     agentShell.style.backgroundPosition = "center";
     agentShell.style.backgroundAttachment = "fixed";
@@ -9089,14 +9128,19 @@ agentTextSelect.addEventListener("change", () => {
 agentBackgroundUpload.addEventListener("change", async (event) => {
   const file = event.target.files?.[0];
   if (!file || !selectedAgentId) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    saveCurrentAgentPreferences({
-      image: typeof reader.result === "string" ? reader.result : "",
+  try {
+    const storedImage = await createStoredAgentBackground(file);
+    const saved = saveCurrentAgentPreferences({
+      image: storedImage,
     });
+    if (!saved) {
+      window.alert("That background image was too large to save. Try a smaller image.");
+      return;
+    }
     render();
-  };
-  reader.readAsDataURL(file);
+  } catch (error) {
+    window.alert(error instanceof Error ? error.message : "Could not save that background image.");
+  }
 });
 clearAgentBackgroundButton.addEventListener("click", () => {
   saveCurrentAgentPreferences({
