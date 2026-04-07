@@ -2205,6 +2205,240 @@ body.dark-mode .rules-manual-summary {
   flex: 0 0 auto;
 }
 
+.assignment-spreadsheet-wrap {
+  overflow: auto;
+  border: 2px solid #0f172a;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+}
+
+
+.assignment-spreadsheet {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.94rem;
+}
+
+
+.assignment-spreadsheet th,
+.assignment-spreadsheet td {
+  padding: 10px 12px;
+  border-right: 1px solid #d2d8de;
+  border-bottom: 1px solid #d2d8de;
+  vertical-align: top;
+  background: #ffffff;
+}
+
+
+.assignment-spreadsheet th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f5f7fb;
+  font-size: 0.78rem;
+  font-family: "Space Grotesk", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #334155;
+  border-top: 8px solid #0f172a;
+}
+
+
+.assignment-spreadsheet tbody tr:hover td {
+  background: rgba(0, 201, 210, 0.04);
+}
+
+.assignment-spreadsheet tr:last-child td {
+  border-bottom: 0;
+}
+
+.assignment-spreadsheet th:last-child,
+.assignment-spreadsheet td:last-child {
+  border-right: 0;
+}
+
+.sticky-col {
+  position: sticky;
+  z-index: 3;
+  background: #ffffff;
+}
+
+.assignment-spreadsheet tbody tr:hover .sticky-col {
+  background: rgba(240, 252, 253, 0.98);
+}
+
+.sticky-out {
+  left: 0;
+  min-width: 72px;
+  max-width: 72px;
+}
+
+.sticky-name {
+  left: 72px;
+  min-width: 210px;
+  max-width: 210px;
+}
+
+
+.sticky-title {
+  left: 282px;
+  min-width: 170px;
+  max-width: 170px;
+}
+
+
+.sticky-manager {
+  left: 452px;
+  min-width: 140px;
+  max-width: 140px;
+}
+
+
+.sticky-schedule {
+  left: 592px;
+  min-width: 150px;
+  max-width: 150px;
+}
+
+
+.time-group-col {
+  min-width: 180px;
+}
+
+
+.spreadsheet-out-cell {
+  text-align: center;
+}
+
+.spreadsheet-out-cell input {
+  width: 18px;
+  height: 18px;
+}
+
+.spreadsheet-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+
+.spreadsheet-title-cell,
+.spreadsheet-manager-cell {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+
+.spreadsheet-schedule-cell {
+  white-space: nowrap;
+}
+
+.spreadsheet-shift-button {
+  width: 100%;
+  justify-content: center;
+  min-height: 38px;
+}
+
+
+.spreadsheet-assignment-cell {
+  min-width: 180px;
+}
+
+
+.spreadsheet-assignment-pill {
+  border-radius: 10px;
+  background: var(--assignment-cell);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+
+.spreadsheet-assignment-select {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--assignment-text);
+  font: inherit;
+  font-weight: 700;
+  padding: 9px 10px;
+  appearance: none;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+
+.spreadsheet-assignment-select option {
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.spreadsheet-assignment-cell.mixed .spreadsheet-assignment-pill {
+  background: linear-gradient(135deg, rgba(0, 201, 210, 0.12), rgba(255, 255, 255, 0.96));
+}
+
+.spreadsheet-shift-row td {
+  background: #f8fafb;
+}
+
+.spreadsheet-inline-shift-panel {
+  margin: 4px 0;
+}
+
+body[data-theme="dark"] #admin-shell .assignment-spreadsheet-wrap,
+body[data-theme="dark"] #admin-shell .assignment-spreadsheet th,
+body[data-theme="dark"] #admin-shell .assignment-spreadsheet td,
+body[data-theme="dark"] #admin-shell .sticky-col {
+  background: rgba(16, 23, 33, 0.94);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+
+body[data-theme="dark"] #admin-shell .assignment-spreadsheet tbody tr:hover td,
+body[data-theme="dark"] #admin-shell .assignment-spreadsheet tbody tr:hover .sticky-col {
+  background: rgba(0, 201, 210, 0.08);
+}
+
+body[data-theme="dark"] #admin-shell .assignment-spreadsheet th,
+body[data-theme="dark"] #admin-shell .spreadsheet-shift-row td {
+  background: linear-gradient(135deg, rgba(0, 201, 210, 0.12), rgba(255, 255, 255, 0.04));
+  border-top-color: transparent;
+}
+
+
+body[data-theme="dark"] #admin-shell .spreadsheet-name {
+  color: var(--ink);
+}
+
+body[data-theme="dark"] #admin-shell .spreadsheet-title-cell,
+body[data-theme="dark"] #admin-shell .spreadsheet-manager-cell {
+  color: var(--muted);
+}
+
+body[data-theme="dark"] #admin-shell .spreadsheet-assignment-pill {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 1200px) {
+  .sticky-col {
+    position: static;
+    max-width: none;
+  }
+
+  .assignment-spreadsheet th,
+  .assignment-spreadsheet td {
+    min-width: 160px;
+  }
+
+  .sticky-out {
+    min-width: 72px;
+  }
+}
+
 .summary-card {
   background: linear-gradient(180deg, #ffffff, #f5f8f9);
   border: 1px solid var(--line);

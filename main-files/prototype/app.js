@@ -3817,6 +3817,16 @@ function formatBlockLabel(index) {
   return timeBlocks[index].label;
 }
 
+function getReadableTextColor(color) {
+  const normalized = String(color || "").replace("#", "").trim();
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return "#0f172a";
+  const red = parseInt(normalized.slice(0, 2), 16);
+  const green = parseInt(normalized.slice(2, 4), 16);
+  const blue = parseInt(normalized.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance > 0.68 ? "#0f172a" : "#fffdf8";
+}
+
 function getGroupedBlocks() {
   const groups = [];
   let index = 0;
@@ -8333,71 +8343,235 @@ function renderSkillsMatrix(filteredTeam = getSkillsMatrixTeam()) {
 }
 
 function renderChart(filteredTeam) {
+  const groups = getGroupedBlocks();
   const selectedAssignment = assignmentFilter.value;
-  const blockData = getGroupedBlocks().map((group) => {
-    const counts = {};
-    filteredTeam.forEach((person) => {
-      group.blockIndexes.forEach((blockIndex) => {
-        const [assignment] = person.assignments[blockIndex];
-        if (!assignment) return;
-        if (selectedAssignment !== "all" && assignment !== selectedAssignment) return;
-        counts[assignment] = (counts[assignment] || 0) + 1;
-      });
-    });
-    const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
-    return { block: group.label, counts, total };
+  const visiblePeople = filteredTeam.filter((person) => {
+    if (selectedAssignment === "all") return true;
+    return groups.some((group) =>
+      group.blockIndexes.some((blockIndex) => person.assignments[blockIndex]?.[0] === selectedAssignment)
+    );
   });
 
-  const legendAssignments = [...new Set(blockData.flatMap(({ counts }) => Object.keys(counts)))];
+  if (!visiblePeople.length) {
+    chartRoot.innerHTML = `<div class="empty-state">No specialists match this filter.</div>`;
+    return;
+  }
+
+  const stickyColumns = 5;
+  const totalColumns = stickyColumns + groups.length;
 
   chartRoot.innerHTML = `
-    ${blockData
-      .map(({ block, counts, total }, index) => {
-        const group = getGroupedBlocks()[index];
-        const segments = Object.entries(counts)
-          .sort((a, b) => b[1] - a[1])
-          .map(([assignment, count]) => {
-            const width = total ? (count / total) * 100 : 0;
-            const label = getAssignmentChartLabel(assignment, count, width);
-            return `
-              <div class="chart-segment" style="width:${width}%; background:${assignmentColors[assignment] || "#6b7280"}">
-                <span>${label}</span>
-              </div>
-            `;
-          })
-          .join("");
+    <div class="assignment-spreadsheet-wrap">
+      <table class="assignment-spreadsheet">
+        <thead>
+          <tr>
+            <th class="sticky-col sticky-out">Out</th>
+            <th class="sticky-col sticky-name">Name</th>
+            <th class="sticky-col sticky-title">Title</th>
+            <th class="sticky-col sticky-manager">Manager</th>
+            <th class="sticky-col sticky-schedule">Schedule</th>
+            ${groups.map((group) => `<th class="time-group-col">${group.label}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>
+          ${visiblePeople
+            .map((person) => {
+              const currentShiftWindow = parseScheduleWindow(person.schedule) || {
+                normalizedStart: 8,
+                normalizedEnd: 17,
+              };
+              const currentStartHour = Math.max(8, Math.floor(currentShiftWindow.normalizedStart));
+              const currentEndHour = Math.min(24, Math.ceil(currentShiftWindow.normalizedEnd));
+              const shiftOptionMarkup = shiftTimeOptions
+                .map(
+                  (hour) => `<option value="${hour}" ${hour === currentStartHour ? "selected" : ""}>${formatShiftHour(hour)}</option>`
+                )
+                .join("");
+              const shiftEndMarkup = shiftTimeOptions
+                .filter((hour) => hour > currentStartHour)
+                .map(
+                  (hour) => `<option value="${hour}" ${hour === currentEndHour ? "selected" : ""}>${formatShiftHour(hour)}</option>`
+                )
+                .join("");
+              const isEditingShift = editingShiftPersonId === personId(person);
+              const rowCells = groups
+                .map((group) => {
+                  const assignments = [...new Set(group.blockIndexes.map((blockIndex) => person.assignments[blockIndex]?.[0]).filter(Boolean))];
+                  const manualOptions = getManualAssignmentOptions(person);
+                  const displayAssignment = assignments[0] || "Open";
+                  const isMixed = assignments.length > 1;
+                  const displayLabel = assignments.length ? assignments.join(" / ") : "Open";
+                  const cellColor = assignmentColors[displayAssignment] || "#edf2f7";
+                  const textColor = getReadableTextColor(cellColor);
+                  const selectOptions = `
+                    ${isMixed ? `<option value="" selected disabled>${displayLabel}</option>` : ""}
+                    ${manualOptions
+                      .map(
+                        (assignment) => `
+                          <option value="${assignment}" ${!isMixed && assignment === displayAssignment ? "selected" : ""}>${assignment}</option>
+                        `
+                      )
+                      .join("")}
+                  `;
+                  return `
+                    <td class="spreadsheet-assignment-cell ${displayAssignment === "OOO/Sick/PTO" ? "out" : ""} ${isMixed ? "mixed" : ""}">
+                      <div class="spreadsheet-assignment-pill" style="--assignment-cell:${cellColor}; --assignment-text:${textColor}">
+                        <select
+                          class="spreadsheet-assignment-select"
+                          data-person-id="${personId(person)}"
+                          data-group-start="${group.startIndex}"
+                          title="${displayLabel}"
+                        >
+                          ${selectOptions}
+                        </select>
+                      </div>
+                    </td>
+                  `;
+                })
+                .join("");
 
-        return `
-          <div class="chart-row">
-            <button
-              type="button"
-              class="chart-label-button"
-              data-target="time-block-${group?.startIndex ?? index}"
-            >${block}</button>
-            <div class="chart-track">${segments}</div>
-            <div class="chart-total">${total} assigned</div>
-          </div>
-        `;
-      })
-      .join("")}
-    <div class="chart-legend">
-      ${legendAssignments
-        .map(
-          (assignment) => `
-            <div class="legend-chip">
-              <span class="legend-swatch" style="background:${assignmentColors[assignment] || "#6b7280"}"></span>
-              <span>${assignment}</span>
-            </div>
-          `
-        )
-        .join("")}
+              return `
+                <tr class="spreadsheet-row ${personIsOut(person) ? "is-out" : ""}">
+                  <td class="sticky-col sticky-out spreadsheet-out-cell">
+                    <input type="checkbox" ${personIsOut(person) ? "checked" : ""} disabled aria-label="${person.name} out" />
+                  </td>
+                  <td class="sticky-col sticky-name spreadsheet-name-cell">
+                    <div class="spreadsheet-name">${person.name}</div>
+                  </td>
+                  <td class="sticky-col sticky-title spreadsheet-title-cell">${person.title}</td>
+                  <td class="sticky-col sticky-manager spreadsheet-manager-cell">${person.manager}</td>
+                  <td class="sticky-col sticky-schedule spreadsheet-schedule-cell">
+                    <button type="button" class="secondary-button spreadsheet-shift-button" data-person-id="${personId(person)}">${person.schedule}</button>
+                  </td>
+                  ${rowCells}
+                </tr>
+                ${
+                  isEditingShift
+                    ? `
+                      <tr class="spreadsheet-shift-row">
+                        <td colspan="${totalColumns}">
+                          <div class="shift-edit-panel spreadsheet-inline-shift-panel">
+                            <div class="shift-edit-grid">
+                              <label>
+                                <span>Start time</span>
+                                <select class="shift-edit-select spreadsheet-shift-start" data-person-id="${personId(person)}">
+                                  ${shiftOptionMarkup}
+                                </select>
+                              </label>
+                              <label>
+                                <span>End time</span>
+                                <select class="shift-edit-select spreadsheet-shift-end" data-person-id="${personId(person)}">
+                                  ${shiftEndMarkup}
+                                </select>
+                              </label>
+                            </div>
+                            <div class="shift-edit-scope">
+                              <label class="shift-scope-option">
+                                <input type="radio" name="chart-shift-scope-${personId(person)}" value="today" checked />
+                                <span>Apply to today only</span>
+                              </label>
+                              <label class="shift-scope-option">
+                                <input type="radio" name="chart-shift-scope-${personId(person)}" value="permanent" />
+                                <span>Make this permanent</span>
+                              </label>
+                            </div>
+                            <div class="manual-edit-actions">
+                              <button type="button" class="shift-save-button spreadsheet-shift-save" data-person-id="${personId(person)}">Save Shift</button>
+                              <button type="button" class="secondary-button shift-cancel-button spreadsheet-shift-cancel" data-person-id="${personId(person)}">Cancel</button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    `
+                    : ""
+                }
+              `;
+            })
+            .join("")}
+        </tbody>
+      </table>
     </div>
   `;
 
-  chartRoot.querySelectorAll(".chart-label-button").forEach((button) => {
+  chartRoot.querySelectorAll(".spreadsheet-assignment-select").forEach((select) => {
+    select.addEventListener("change", () => {
+      const person = getPersonById(select.dataset.personId || "");
+      const group = groups.find((entry) => String(entry.startIndex) === String(select.dataset.groupStart || ""));
+      if (!person || !group) return;
+
+      const nextAssignment = select.value;
+      const previousAssignments = [
+        ...new Set(group.blockIndexes.map((blockIndex) => person.assignments[blockIndex][0]).filter(Boolean)),
+      ];
+
+      group.blockIndexes.forEach((blockIndex) => {
+        person.assignments[blockIndex] = [
+          nextAssignment === "Open" ? "" : nextAssignment,
+          nextAssignment === "Tier 2 Phones",
+        ];
+      });
+
+      void appendAuditLogEntry({
+        actionType: "assignment-updated",
+        summary: `Updated ${person.name}: ${group.label}`,
+        details: [
+          `From ${previousAssignments.length ? previousAssignments.join(" / ") : "Open"}`,
+          `To ${nextAssignment}`,
+          "Source: Assignment graph",
+        ],
+      });
+      render();
+    });
+  });
+
+  chartRoot.querySelectorAll(".spreadsheet-shift-button").forEach((button) => {
     button.addEventListener("click", () => {
-      const target = document.getElementById(button.dataset.target || "");
-      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      editingShiftPersonId = button.dataset.personId || null;
+      render();
+    });
+  });
+
+  chartRoot.querySelectorAll(".spreadsheet-shift-cancel").forEach((button) => {
+    button.addEventListener("click", () => {
+      editingShiftPersonId = null;
+      render();
+    });
+  });
+
+  chartRoot.querySelectorAll(".spreadsheet-shift-start").forEach((select) => {
+    select.addEventListener("change", () => {
+      const personKey = select.dataset.personId || "";
+      const endSelect = chartRoot.querySelector(`.spreadsheet-shift-end[data-person-id="${personKey}"]`);
+      if (!endSelect) return;
+      const startValue = Number(select.value);
+      const previousEnd = Number(endSelect.value || startValue + 1);
+      endSelect.innerHTML = shiftTimeOptions
+        .filter((hour) => hour > startValue)
+        .map((hour) => `<option value="${hour}" ${hour === previousEnd ? "selected" : ""}>${formatShiftHour(hour)}</option>`)
+        .join("");
+      if (!endSelect.value) {
+        endSelect.value = String(Math.min(24, startValue + 1));
+      }
+    });
+  });
+
+  chartRoot.querySelectorAll(".spreadsheet-shift-save").forEach((button) => {
+    button.addEventListener("click", () => {
+      const person = getPersonById(button.dataset.personId || "");
+      if (!person) return;
+
+      const startSelect = chartRoot.querySelector(`.spreadsheet-shift-start[data-person-id="${button.dataset.personId}"]`);
+      const endSelect = chartRoot.querySelector(`.spreadsheet-shift-end[data-person-id="${button.dataset.personId}"]`);
+      const modeInput = chartRoot.querySelector(`input[name="chart-shift-scope-${button.dataset.personId}"]:checked`);
+      if (!startSelect || !endSelect || !modeInput) return;
+
+      const startHour = Number(startSelect.value);
+      const endHour = Number(endSelect.value);
+      if (!Number.isFinite(startHour) || !Number.isFinite(endHour) || endHour <= startHour) return;
+
+      saveShiftChange(person, formatScheduleValue(startHour, endHour), modeInput.value);
+      editingShiftPersonId = null;
+      render();
     });
   });
 }
