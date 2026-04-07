@@ -2091,11 +2091,65 @@ body.dark-mode .rules-manual-summary {
   accent-color: var(--accent-deep);
 }
 
+.assignment-graph-header {
+  align-items: center;
+}
+
+.assignment-graph-expand-button {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
 .assignment-chart {
   display: grid;
   gap: 14px;
   overflow-x: auto;
   padding-bottom: 6px;
+}
+
+body.assignment-graph-open {
+  overflow: hidden;
+}
+
+body.assignment-graph-open::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.34);
+  backdrop-filter: blur(3px);
+  z-index: 1190;
+}
+
+#assignment-graph-panel.is-expanded {
+  position: fixed;
+  inset: 22px;
+  z-index: 1200;
+  margin: 0;
+  width: auto;
+  max-width: none;
+  max-height: calc(100vh - 44px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 2px solid rgba(15, 23, 42, 0.16);
+  box-shadow: 0 28px 64px rgba(15, 23, 42, 0.32);
+}
+
+#assignment-graph-panel.is-expanded .assistant-compact-card,
+#assignment-graph-panel.is-expanded .panel-filters {
+  flex: 0 0 auto;
+}
+
+#assignment-graph-panel.is-expanded .assignment-chart {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 8px;
+  padding-bottom: 12px;
+}
+
+#assignment-graph-panel.is-expanded .assignment-spreadsheet-wrap {
+  max-height: none;
 }
 
 .chart-row {
@@ -2272,14 +2326,17 @@ body.dark-mode .rules-manual-summary {
 
 .sticky-out {
   left: 0;
+  width: 72px;
   min-width: 72px;
   max-width: 72px;
   z-index: 7;
 }
 
 
+
 .sticky-name {
   left: 72px;
+  width: 210px;
   min-width: 210px;
   max-width: 210px;
   z-index: 6;
@@ -2287,8 +2344,10 @@ body.dark-mode .rules-manual-summary {
 
 
 
+
 .sticky-title {
   left: 282px;
+  width: 170px;
   min-width: 170px;
   max-width: 170px;
   z-index: 5;
@@ -2296,8 +2355,10 @@ body.dark-mode .rules-manual-summary {
 
 
 
+
 .sticky-manager {
   left: 452px;
+  width: 170px;
   min-width: 170px;
   max-width: 170px;
   z-index: 4;
@@ -2305,19 +2366,25 @@ body.dark-mode .rules-manual-summary {
 
 
 
+
 .sticky-schedule {
   left: 622px;
-  min-width: 150px;
-  max-width: 150px;
+  width: 190px;
+  min-width: 190px;
+  max-width: 190px;
   z-index: 3;
+  box-shadow: 8px 0 16px -12px rgba(15, 23, 42, 0.35);
 }
+
 
 
 
 .time-group-col {
+  width: 180px;
   min-width: 180px;
   z-index: 1;
 }
+
 
 
 

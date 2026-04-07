@@ -2361,6 +2361,8 @@ const showOutOnly = document.getElementById("show-out-only");
 const outOnlyCard = document.getElementById("out-only-card");
 const outOnlyNames = document.getElementById("out-only-names");
 const chartRoot = document.getElementById("assignment-chart");
+const assignmentGraphPanel = document.getElementById("assignment-graph-panel");
+const assignmentGraphExpandButton = document.getElementById("assignment-graph-expand");
 const boardJumpRoot = document.getElementById("board-jump");
 const commandInput = document.getElementById("command-input");
 const sendMessageButton = document.getElementById("send-message");
@@ -2458,6 +2460,7 @@ let pendingQuestion = null;
 let lastInsight = null;
 let assistantMode = "local";
 let activeWorkspaceTab = "board";
+let assignmentGraphExpanded = false;
 let automationTestState = {};
 let archiveLibrary = {
   folder: "Supabase bucket: daily-ops-archives",
@@ -2519,6 +2522,23 @@ let messages = [
     text: "",
   },
 ];
+
+function syncAssignmentGraphExpandedState() {
+  if (!assignmentGraphPanel || !assignmentGraphExpandButton) return;
+  assignmentGraphPanel.classList.toggle("is-expanded", assignmentGraphExpanded);
+  document.body.classList.toggle("assignment-graph-open", assignmentGraphExpanded);
+  assignmentGraphExpandButton.textContent = assignmentGraphExpanded ? "Collapse" : "Expand";
+}
+
+function setAssignmentGraphExpanded(nextExpanded) {
+  assignmentGraphExpanded = Boolean(nextExpanded);
+  syncAssignmentGraphExpandedState();
+}
+
+function collapseAssignmentGraph() {
+  if (!assignmentGraphExpanded) return;
+  setAssignmentGraphExpanded(false);
+}
 
 const shiftOverrideStorageKey = "daily-ops-shift-overrides-v1";
 const reshuffleReportStorageKey = "daily-ops-reshuffle-report-v1";
@@ -9233,23 +9253,30 @@ managerFilter.addEventListener("change", render);
 assignmentFilter.addEventListener("change", render);
 personFilter.addEventListener("change", render);
 showOutOnly.addEventListener("change", render);
+assignmentGraphExpandButton?.addEventListener("click", () => {
+  setAssignmentGraphExpanded(!assignmentGraphExpanded);
+});
 boardTabButton.addEventListener("click", () => {
   activeWorkspaceTab = "board";
   render();
 });
 shiftTabButton.addEventListener("click", () => {
+  collapseAssignmentGraph();
   activeWorkspaceTab = "shift";
   render();
 });
 skillsTabButton.addEventListener("click", () => {
+  collapseAssignmentGraph();
   activeWorkspaceTab = "skills";
   render();
 });
 automationsTabButton.addEventListener("click", () => {
+  collapseAssignmentGraph();
   activeWorkspaceTab = "automations";
   render();
 });
 adminTabButton.addEventListener("click", () => {
+  collapseAssignmentGraph();
   activeWorkspaceTab = "admin";
   render();
 });
@@ -9365,6 +9392,7 @@ agentEnableNotificationsButton.addEventListener("click", async () => {
 });
 agentTestAlertButton.addEventListener("click", sendTestNotification);
 backToHomeAdminButton.addEventListener("click", () => {
+  collapseAssignmentGraph();
   setView("portal");
   render();
 });
@@ -9372,6 +9400,12 @@ backToHomeAgentButton.addEventListener("click", () => {
   setView("portal");
   render();
 });
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && assignmentGraphExpanded) {
+    collapseAssignmentGraph();
+  }
+});
+
 commandInput.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
     submitChatRequest();
