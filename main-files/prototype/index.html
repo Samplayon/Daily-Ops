@@ -88,7 +88,7 @@
       </div>
 
       <main class="layout">
-        <section class="assistant-layout">
+        <section class="assistant-layout hidden assistant-legacy-shell" aria-hidden="true">
           <section class="panel panel-chat">
             <div class="panel-header">
               <div>
@@ -239,6 +239,40 @@
                 <h2>Assignment Graph</h2>
                 <p>Visual coverage by time block across the day.</p>
               </div>
+              <section class="assistant-compact-card">
+                <div class="assistant-compact-header">
+                  <div>
+                    <h3>Quick Actions</h3>
+                    <p>Make a schedule change right from the assignment graph.</p>
+                  </div>
+                </div>
+                <div class="assistant-compact-grid">
+                  <label>
+                    <span>What do you want to do?</span>
+                    <select id="compact-assistant-goal-select" class="portal-input">
+                      <option value="move">Move people around</option>
+                      <option value="coverage">Set coverage target</option>
+                      <option value="out">Mark someone out</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Who / what?</span>
+                    <input id="compact-assistant-subject-input" type="text" class="portal-input" placeholder="Ezra, Tyler, or Ireal and Nick" />
+                  </label>
+                  <label>
+                    <span>Assignment</span>
+                    <select id="compact-assistant-assignment-select" class="portal-input"></select>
+                  </label>
+                  <label>
+                    <span>When?</span>
+                    <input id="compact-assistant-time-input" type="text" class="portal-input" placeholder="from 2-5 or all day" />
+                  </label>
+                </div>
+                <div class="assistant-compact-actions">
+                  <button id="compact-assistant-apply" type="button">Apply Change</button>
+                  <div id="assistant-inline-feedback" class="assistant-inline-feedback hidden"></div>
+                </div>
+              </section>
               <section class="panel panel-filters nested-panel">
                 <div class="panel-header">
                   <h2>Filters</h2>
