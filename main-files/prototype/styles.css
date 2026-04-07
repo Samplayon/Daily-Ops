@@ -2262,9 +2262,9 @@ body.dark-mode .rules-manual-summary {
 
 .sticky-col {
   position: sticky;
-  z-index: 3;
   background: #ffffff;
 }
+
 
 .assignment-spreadsheet tbody tr:hover .sticky-col {
   background: rgba(240, 252, 253, 0.98);
@@ -2274,39 +2274,51 @@ body.dark-mode .rules-manual-summary {
   left: 0;
   min-width: 72px;
   max-width: 72px;
+  z-index: 7;
 }
+
 
 .sticky-name {
   left: 72px;
   min-width: 210px;
   max-width: 210px;
+  z-index: 6;
 }
+
 
 
 .sticky-title {
   left: 282px;
   min-width: 170px;
   max-width: 170px;
+  z-index: 5;
 }
+
 
 
 .sticky-manager {
   left: 452px;
-  min-width: 140px;
-  max-width: 140px;
+  min-width: 170px;
+  max-width: 170px;
+  z-index: 4;
 }
+
 
 
 .sticky-schedule {
-  left: 592px;
+  left: 622px;
   min-width: 150px;
   max-width: 150px;
+  z-index: 3;
 }
+
 
 
 .time-group-col {
   min-width: 180px;
+  z-index: 1;
 }
+
 
 
 .spreadsheet-out-cell {
