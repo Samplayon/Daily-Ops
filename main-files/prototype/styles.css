@@ -2466,6 +2466,37 @@ body.assignment-graph-open::after {
 
 .spreadsheet-inline-shift-panel {
   margin: 4px 0;
+  width: min(720px, 100%);
+  justify-self: start;
+  padding: 12px;
+  gap: 10px;
+}
+
+.spreadsheet-inline-shift-panel .shift-edit-grid {
+  grid-template-columns: repeat(2, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.spreadsheet-inline-shift-panel .shift-edit-scope {
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.spreadsheet-inline-shift-panel .shift-scope-option {
+  padding: 10px 12px;
+}
+
+.spreadsheet-inline-shift-panel .shift-edit-select {
+  padding: 10px 12px;
+}
+
+.spreadsheet-inline-shift-panel .manual-edit-actions {
+  gap: 8px;
+}
+
+.spreadsheet-inline-shift-panel .shift-save-button,
+.spreadsheet-inline-shift-panel .shift-cancel-button {
+  min-height: 40px;
 }
 
 body[data-theme="dark"] #admin-shell .assignment-spreadsheet-wrap,
