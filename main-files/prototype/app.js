@@ -2441,6 +2441,7 @@ const automationsView = document.getElementById("automations-view");
 const adminView = document.getElementById("admin-view");
 const shiftSearchInput = document.getElementById("shift-search-input");
 const shiftEditorList = document.getElementById("shift-editor-list");
+const skillsSearchInput = document.getElementById("skills-search-input");
 const skillsMatrix = document.getElementById("skills-matrix");
 const schedulingRulesCard = document.getElementById("scheduling-rules-card");
 const automationsList = document.getElementById("automations-list");
@@ -2520,6 +2521,7 @@ let assistantManagerMode = "all";
 let editingBoardRow = null;
 let editingShiftPersonId = null;
 let shiftSearchTerm = "";
+let skillsSearchTerm = "";
 let schedulingRuleBuilderType = "exact-coverage";
 let blockLayout = {
   baseSize: 1,
@@ -2810,6 +2812,14 @@ function loadShiftOverrides() {
   }
 }
 
+function cloneAssignments(assignments) {
+  return (assignments || []).map(([assignment, phones]) => [assignment, phones]);
+}
+
+function getDailyOverrideEntry(overrides, dateKey, personKey) {
+  return overrides?.daily?.[dateKey]?.[personKey] || {};
+}
+
 function saveShiftOverrides(payload) {
   window.localStorage.setItem(shiftOverrideStorageKey, JSON.stringify(payload));
 }
@@ -2962,12 +2972,82 @@ function applyScheduleToPerson(person, schedule) {
 function applyStoredShiftOverrides() {
   const todayKey = getTodayKey();
   const weekdayKey = getCurrentWeekdayKey();
+  const overrides = loadShiftOverrides();
 
   team.forEach((person) => {
     const profile = getStoredScheduleProfile(person, todayKey, weekdayKey);
     person.workdays = profile.workdays;
     applyScheduleToPerson(person, profile.schedule);
+    const dailyEntry = getDailyOverrideEntry(overrides, todayKey, personId(person));
+    if (/ooo|pto|sick/i.test(dailyEntry?.schedule || '')) {
+      person.schedule = 'OOO/Sick/PTO';
+      person.assignments = person.assignments.map(() => ['OOO/Sick/PTO', false]);
+    }
   });
+}
+
+function toggleSpreadsheetOutState(person, shouldBeOut) {
+  const overrides = loadShiftOverrides();
+  const todayKey = getTodayKey();
+  const personKey = personId(person);
+  overrides.daily[todayKey] = overrides.daily[todayKey] || {};
+  const existingEntry = getDailyOverrideEntry(overrides, todayKey, personKey);
+
+  if (shouldBeOut) {
+    if (!existingEntry.outSnapshot) {
+      existingEntry.outSnapshot = {
+        schedule: person.schedule,
+        hadDailySchedule: Object.prototype.hasOwnProperty.call(existingEntry, 'schedule'),
+        dailySchedule: existingEntry.schedule ?? null,
+        assignments: cloneAssignments(person.assignments),
+      };
+    }
+    existingEntry.schedule = 'OOO/Sick/PTO';
+    overrides.daily[todayKey][personKey] = existingEntry;
+    saveShiftOverrides(overrides);
+    person.schedule = 'OOO/Sick/PTO';
+    person.assignments = person.assignments.map(() => ['OOO/Sick/PTO', false]);
+    if (currentView === 'admin') {
+      void appendAuditLogEntry({
+        actionType: 'mark_out_day',
+        summary: `${person.name} marked out from assignment graph`,
+        details: ['Status: OOO/Sick/PTO', 'Source: Assignment graph OUT column'],
+      });
+    }
+    return;
+  }
+
+  const snapshot = existingEntry.outSnapshot;
+  if (snapshot?.hadDailySchedule) {
+    existingEntry.schedule = snapshot.dailySchedule;
+  } else {
+    delete existingEntry.schedule;
+  }
+  delete existingEntry.outSnapshot;
+  if (Object.keys(existingEntry).length) {
+    overrides.daily[todayKey][personKey] = existingEntry;
+  } else {
+    delete overrides.daily[todayKey][personKey];
+  }
+  if (!Object.keys(overrides.daily[todayKey]).length) {
+    delete overrides.daily[todayKey];
+  }
+  saveShiftOverrides(overrides);
+
+  if (snapshot?.assignments?.length) {
+    person.schedule = snapshot.schedule;
+    person.assignments = cloneAssignments(snapshot.assignments);
+  } else {
+    applyStoredShiftOverrides();
+  }
+
+  if (currentView === 'admin') {
+    void appendAuditLogEntry({
+      actionType: 'restore_assignment',
+      summary: `${person.name} restored from OUT status`,
+      details: ['Restored previous assignments', 'Source: Assignment graph OUT column'],
+    });
+  }
 }
 
 function saveShiftChange(person, schedule, mode, workdays = null) {
@@ -8553,7 +8633,18 @@ function renderArchives() {
 }
 
 function renderSkillsMatrix(filteredTeam = getSkillsMatrixTeam()) {
-  const sortedTeam = [...filteredTeam].sort((left, right) => left.name.localeCompare(right.name));
+  const normalizedQuery = normalizeText(skillsSearchTerm || "").trim();
+  const visibleTeam = [...filteredTeam].filter((person) => {
+    if (!normalizedQuery) return true;
+    const haystack = normalizeText([person.name, person.manager, person.title, person.teamGroup === "aco" ? "ACO" : "Support"].filter(Boolean).join(" "));
+    return haystack.includes(normalizedQuery);
+  });
+  const sortedTeam = [...visibleTeam].sort((left, right) => left.name.localeCompare(right.name));
+  if (!sortedTeam.length) {
+    skillsMatrix.innerHTML = `<div class="empty-state">No agents match that search.</div>`;
+    return;
+  }
+
   skillsMatrix.innerHTML = `
     <div class="skills-people-list">
       ${sortedTeam
@@ -8718,7 +8809,7 @@ function renderChart(filteredTeam) {
               return `
                 <tr class="spreadsheet-row ${personIsOut(person) ? "is-out" : ""}">
                   <td class="sticky-col sticky-out spreadsheet-out-cell">
-                    <input type="checkbox" ${personIsOut(person) ? "checked" : ""} disabled aria-label="${person.name} out" />
+                    <input type="checkbox" class="spreadsheet-out-toggle" data-person-id="${personId(person)}" ${personIsOut(person) ? "checked" : ""} aria-label="${person.name} out" />
                   </td>
                   <td class="sticky-col sticky-name spreadsheet-name-cell">
                     <div class="spreadsheet-name">${person.name}</div>
@@ -8777,6 +8868,15 @@ function renderChart(filteredTeam) {
       </table>
     </div>
   `;
+
+  chartRoot.querySelectorAll(".spreadsheet-out-toggle").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      const person = getPersonById(checkbox.dataset.personId || "");
+      if (!person) return;
+      toggleSpreadsheetOutState(person, checkbox.checked);
+      render();
+    });
+  });
 
   chartRoot.querySelectorAll(".spreadsheet-assignment-select").forEach((select) => {
     select.addEventListener("change", () => {
@@ -9549,6 +9649,10 @@ adminTabButton.addEventListener("click", () => {
 shiftSearchInput?.addEventListener("input", (event) => {
   shiftSearchTerm = event.target.value || "";
   renderShiftEditor();
+});
+skillsSearchInput?.addEventListener("input", (event) => {
+  skillsSearchTerm = event.target.value || "";
+  renderSkillsMatrix(getSkillsMatrixTeam());
 });
 assistantGoalSelect.addEventListener("change", syncAssistantBuilder);
 assistantSubjectInput?.addEventListener("blur", () => {

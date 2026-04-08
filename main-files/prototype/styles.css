@@ -233,6 +233,7 @@ body[data-theme="dark"] #admin-shell .person-name,
 body[data-theme="dark"] #admin-shell .assignment-manager-name,
 body[data-theme="dark"] #admin-shell .rule-label,
 body[data-theme="dark"] #admin-shell .shift-search-field span,
+body[data-theme="dark"] #admin-shell .skills-agent-search-field span,
 body[data-theme="dark"] #admin-shell .automation-settings span,
 body[data-theme="dark"] #admin-shell .assignment-manager-fixed,
 body[data-theme="dark"] #admin-shell .toggle span,
@@ -2064,6 +2065,20 @@ body.dark-mode .rules-manual-summary {
   color: var(--muted);
 }
 
+.skills-agent-search-row {
+  padding: 0 22px 22px;
+}
+
+.skills-agent-search-field {
+  display: grid;
+  gap: 10px;
+}
+
+.skills-agent-search-field span {
+  font-weight: 700;
+  color: var(--ink);
+}
+
 .skills-matrix {
   min-width: 0;
 }
@@ -2350,6 +2365,8 @@ body.assignment-graph-open::after {
 
 .assignment-spreadsheet-wrap {
   overflow: auto;
+  position: relative;
+  isolation: isolate;
   border: 2px solid #0f172a;
   border-radius: 16px;
   background: #f6f8f9;
@@ -2381,6 +2398,7 @@ body.assignment-graph-open::after {
   top: 0;
   z-index: 2;
   background: #f5f7fb;
+  background-clip: padding-box;
   font-size: 0.78rem;
   font-family: "Space Grotesk", sans-serif;
   text-transform: uppercase;
@@ -2406,6 +2424,16 @@ body.assignment-graph-open::after {
 .sticky-col {
   position: sticky;
   background: #f6f8f9;
+  background-clip: padding-box;
+}
+
+.assignment-spreadsheet th.sticky-col {
+  z-index: 30;
+  background: #f5f7fb;
+}
+
+.assignment-spreadsheet td.sticky-col {
+  z-index: 20;
 }
 
 
@@ -2418,7 +2446,7 @@ body.assignment-graph-open::after {
   width: 72px;
   min-width: 72px;
   max-width: 72px;
-  z-index: 7;
+  z-index: 27;
 }
 
 
@@ -2428,7 +2456,7 @@ body.assignment-graph-open::after {
   width: 210px;
   min-width: 210px;
   max-width: 210px;
-  z-index: 6;
+  z-index: 26;
 }
 
 
@@ -2439,7 +2467,7 @@ body.assignment-graph-open::after {
   width: 170px;
   min-width: 170px;
   max-width: 170px;
-  z-index: 5;
+  z-index: 25;
 }
 
 
@@ -2450,7 +2478,7 @@ body.assignment-graph-open::after {
   width: 170px;
   min-width: 170px;
   max-width: 170px;
-  z-index: 4;
+  z-index: 24;
 }
 
 
@@ -2461,8 +2489,23 @@ body.assignment-graph-open::after {
   width: 190px;
   min-width: 190px;
   max-width: 190px;
-  z-index: 3;
-  box-shadow: 8px 0 16px -12px rgba(15, 23, 42, 0.35);
+  z-index: 23;
+  box-shadow: 10px 0 18px -12px rgba(15, 23, 42, 0.42);
+}
+
+.sticky-schedule::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -1px;
+  width: 14px;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(246, 248, 249, 0.98), #f6f8f9);
+}
+
+.assignment-spreadsheet th.sticky-schedule::after {
+  background: linear-gradient(90deg, rgba(245, 247, 251, 0.98), #f5f7fb);
 }
 
 
