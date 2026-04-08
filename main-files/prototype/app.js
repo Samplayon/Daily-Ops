@@ -3086,7 +3086,11 @@ function saveShiftChange(person, schedule, mode, workdays = null) {
   }
 }
 
-applyStoredShiftOverrides();
+try {
+  applyStoredShiftOverrides();
+} catch (error) {
+  console.error("Shift override bootstrap failed", error);
+}
 
 function populatePortalAgentSelect() {
   if (!agentSelect) return;
@@ -3225,10 +3229,26 @@ function handleAgentOpen() {
   render();
 }
 
-populatePortalAgentSelect();
-populateAdminIdentitySelect();
-populatePersonFilter();
-populateAssistantManagerFilter();
+try {
+  populatePortalAgentSelect();
+} catch (error) {
+  console.error("Portal agent select bootstrap failed", error);
+}
+try {
+  populateAdminIdentitySelect();
+} catch (error) {
+  console.error("Admin identity bootstrap failed", error);
+}
+try {
+  populatePersonFilter();
+} catch (error) {
+  console.error("Person filter bootstrap failed", error);
+}
+try {
+  populateAssistantManagerFilter();
+} catch (error) {
+  console.error("Assistant manager bootstrap failed", error);
+}
 
 promptChips.forEach((chip) => {
   chip.addEventListener("click", () => {
@@ -3825,10 +3845,23 @@ function renderAuditLog() {
 }
 
 refreshAssignmentCollections();
-refreshAssignmentControls();
-setTheme(getSavedTheme());
+try {
+  refreshAssignmentControls();
+} catch (error) {
+  console.error("Assignment control bootstrap failed", error);
+}
 
-syncAssistantBuilder();
+try {
+  setTheme(getSavedTheme());
+} catch (error) {
+  console.error("Theme bootstrap failed", error);
+}
+
+try {
+  syncAssistantBuilder();
+} catch (error) {
+  console.error("Assistant builder bootstrap failed", error);
+}
 
 function renderAssistantScopeButtons() {
   assistantScopeButtons.forEach((button) => {
