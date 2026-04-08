@@ -2476,6 +2476,7 @@ let lastInsight = null;
 let assistantMode = "local";
 let activeWorkspaceTab = "board";
 let assignmentGraphExpanded = false;
+let assignmentGraphPanelPlaceholder = null;
 let automationTestState = {};
 let archiveLibrary = {
   folder: "Supabase bucket: daily-ops-archives",
@@ -2541,6 +2542,18 @@ let messages = [
 
 function syncAssignmentGraphExpandedState() {
   if (!assignmentGraphPanel || !assignmentGraphExpandButton) return;
+  if (assignmentGraphExpanded) {
+    if (!assignmentGraphPanelPlaceholder) {
+      assignmentGraphPanelPlaceholder = document.createElement("div");
+      assignmentGraphPanelPlaceholder.className = "assignment-graph-placeholder";
+      assignmentGraphPanel.parentNode?.insertBefore(assignmentGraphPanelPlaceholder, assignmentGraphPanel);
+      document.body.appendChild(assignmentGraphPanel);
+    }
+  } else if (assignmentGraphPanelPlaceholder?.parentNode) {
+    assignmentGraphPanelPlaceholder.parentNode.insertBefore(assignmentGraphPanel, assignmentGraphPanelPlaceholder);
+    assignmentGraphPanelPlaceholder.remove();
+    assignmentGraphPanelPlaceholder = null;
+  }
   assignmentGraphPanel.classList.toggle("is-expanded", assignmentGraphExpanded);
   document.body.classList.toggle("assignment-graph-open", assignmentGraphExpanded);
   assignmentGraphExpandButton.textContent = assignmentGraphExpanded ? "Collapse" : "Expand";
