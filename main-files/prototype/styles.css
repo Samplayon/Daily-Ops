@@ -1,14 +1,14 @@
 :root {
-  --bg: #eef2f4;
-  --paper: rgba(255, 255, 255, 0.96);
+  --bg: #e3eaee;
+  --paper: rgba(245, 248, 250, 0.96);
   --ink: #05080d;
   --muted: #4b5563;
-  --line: rgba(5, 8, 13, 0.12);
+  --line: rgba(5, 8, 13, 0.16);
   --accent: #00c9d2;
   --accent-deep: #009aa1;
   --sea: #00c9d2;
   --gold: #a7f0f4;
-  --shadow: 0 18px 50px rgba(5, 8, 13, 0.12);
+  --shadow: 0 18px 50px rgba(5, 8, 13, 0.09);
 }
 
 body[data-theme="dark"] {
@@ -31,7 +31,7 @@ body {
   background:
     radial-gradient(circle at top left, rgba(0, 201, 210, 0.12), transparent 24%),
     radial-gradient(circle at top right, rgba(5, 8, 13, 0.08), transparent 22%),
-    linear-gradient(180deg, #f8fafb 0%, var(--bg) 100%);
+    linear-gradient(180deg, #edf3f5 0%, var(--bg) 100%);
   min-height: 100vh;
 }
 
@@ -91,8 +91,8 @@ body[data-theme="dark"] {
   width: min(980px, 100%);
   padding: 32px;
   border-radius: 32px;
-  background: rgba(255, 255, 255, 0.94);
-  border: 2px solid rgba(255, 255, 255, 0.78);
+  background: rgba(245, 248, 250, 0.94);
+  border: 2px solid rgba(224, 232, 237, 0.92);
   box-shadow: var(--shadow);
 }
 
@@ -382,7 +382,7 @@ body[data-theme="dark"] #agent-shell .agent-day-row .person-meta {
   appearance: none;
   width: 100%;
   border: 1px solid var(--line);
-  background: #fffdf8;
+  background: #f3f1ea;
   color: var(--ink);
   border-radius: 14px;
   padding: 12px 14px;
@@ -426,7 +426,7 @@ body[data-theme="dark"] #agent-shell .agent-day-row .person-meta {
 .assistant-scope-button {
   appearance: none;
   border: 1px solid var(--line);
-  background: #ffffff;
+  background: #f6f8f9;
   color: var(--ink);
   border-radius: 999px;
   padding: 9px 14px;
@@ -463,7 +463,7 @@ body[data-theme="dark"] #agent-shell .agent-day-row .person-meta {
   background:
     radial-gradient(circle at top left, rgba(0, 201, 210, 0.12), transparent 24%),
     radial-gradient(circle at top right, rgba(5, 8, 13, 0.08), transparent 22%),
-    linear-gradient(180deg, #f8fafb 0%, var(--bg) 100%);
+    linear-gradient(180deg, #edf3f5 0%, var(--bg) 100%);
 }
 
 #agent-shell.theme-sunrise {
@@ -545,7 +545,7 @@ body[data-theme="dark"] #agent-shell .agent-day-row .person-meta {
   background:
     radial-gradient(circle at top left, rgba(0, 201, 210, 0.12), transparent 24%),
     radial-gradient(circle at top right, rgba(5, 8, 13, 0.08), transparent 22%),
-    linear-gradient(180deg, #f8fafb 0%, var(--bg) 100%);
+    linear-gradient(180deg, #edf3f5 0%, var(--bg) 100%);
 }
 
 #agent-shell.bg-midnight {
@@ -562,7 +562,7 @@ body[data-theme="dark"] #agent-shell .agent-day-row .person-meta {
 }
 
 #agent-shell.bg-paper {
-  background: linear-gradient(180deg, #ffffff 0%, #f3f6f8 100%);
+  background: linear-gradient(180deg, #f2f5f7 0%, #e8eef1 100%);
 }
 
 .agent-settings {
@@ -577,7 +577,7 @@ body[data-theme="dark"] #agent-shell .agent-day-row .person-meta {
   padding: 6px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #fffdf8;
+  background: #f3f1ea;
   cursor: pointer;
 }
 
@@ -985,7 +985,7 @@ textarea {
   resize: vertical;
   min-height: 88px;
   border: 2px solid rgba(5, 8, 13, 0.1);
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(245, 248, 250, 0.94);
   color: var(--ink);
   border-radius: 18px;
   padding: 16px;
@@ -1234,7 +1234,7 @@ select,
 select {
   appearance: none;
   border: 1px solid var(--line);
-  background: #fffdf8;
+  background: #f3f1ea;
   color: var(--ink);
   border-radius: 14px;
   padding: 12px 14px;
@@ -1248,7 +1248,7 @@ select {
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: #ffffff;
+  background: #f6f8f9;
 }
 
 .toggle span {
@@ -1754,7 +1754,7 @@ body.dark-mode .rules-manual-summary {
 .automation-settings input {
   width: 100%;
   border: 1px solid var(--line);
-  background: #fffdf8;
+  background: #f3f1ea;
   color: var(--ink);
   border-radius: 14px;
   padding: 12px 14px;
@@ -1815,7 +1815,7 @@ body.dark-mode .rules-manual-summary {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #ffffff;
+  background: #f6f8f9;
   box-shadow: 0 2px 8px rgba(5, 8, 13, 0.16);
   transition: transform 160ms ease;
 }
@@ -1989,7 +1989,7 @@ body.dark-mode .rules-manual-summary {
   margin-top: 14px;
   padding: 14px 16px;
   border-radius: 16px;
-  background: #ffffff;
+  background: #f6f8f9;
   border: 2px solid rgba(5, 8, 13, 0.12);
   color: var(--muted);
 }
@@ -2029,7 +2029,7 @@ body.dark-mode .rules-manual-summary {
   overflow: auto;
   border: 2px solid rgba(5, 8, 13, 0.12);
   border-radius: 16px;
-  background: #ffffff;
+  background: #f6f8f9;
 }
 
 .archive-preview-table {
@@ -2335,7 +2335,7 @@ body.assignment-graph-open::after {
   gap: 8px;
   padding: 8px 10px;
   border-radius: 999px;
-  background: #ffffff;
+  background: #f6f8f9;
   border: 1px solid var(--line);
   font-size: 0.82rem;
   color: var(--ink);
@@ -2352,7 +2352,7 @@ body.assignment-graph-open::after {
   overflow: auto;
   border: 2px solid #0f172a;
   border-radius: 16px;
-  background: #ffffff;
+  background: #f6f8f9;
   box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
 }
 
@@ -2372,7 +2372,7 @@ body.assignment-graph-open::after {
   border-right: 1px solid #d2d8de;
   border-bottom: 1px solid #d2d8de;
   vertical-align: top;
-  background: #ffffff;
+  background: #f6f8f9;
 }
 
 
@@ -2405,7 +2405,7 @@ body.assignment-graph-open::after {
 
 .sticky-col {
   position: sticky;
-  background: #ffffff;
+  background: #f6f8f9;
 }
 
 
@@ -2542,7 +2542,7 @@ body.assignment-graph-open::after {
 
 .spreadsheet-assignment-select option {
   color: #0f172a;
-  background: #ffffff;
+  background: #f6f8f9;
 }
 
 .spreadsheet-assignment-cell.mixed .spreadsheet-assignment-pill {
@@ -2639,7 +2639,7 @@ body[data-theme="dark"] #admin-shell .spreadsheet-assignment-pill {
 }
 
 .summary-card {
-  background: linear-gradient(180deg, #ffffff, #f5f8f9);
+  background: linear-gradient(180deg, #f3f6f8, #e8eef1);
   border: 1px solid var(--line);
   border-radius: 18px;
   padding: 16px;
@@ -2686,7 +2686,7 @@ body[data-theme="dark"] #admin-shell .spreadsheet-assignment-pill {
   border: 1px solid var(--line);
   border-radius: 20px;
   overflow: hidden;
-  background: #ffffff;
+  background: #f6f8f9;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
@@ -2792,7 +2792,7 @@ body[data-theme="dark"] #admin-shell .spreadsheet-assignment-pill {
 .manual-edit-select {
   appearance: none;
   border: 1px solid var(--line);
-  background: #fffdf8;
+  background: #f3f1ea;
   color: var(--ink);
   border-radius: 14px;
   padding: 12px 14px;
@@ -2846,7 +2846,7 @@ body[data-theme="dark"] #admin-shell .spreadsheet-assignment-pill {
 .shift-edit-select {
   appearance: none;
   border: 1px solid var(--line);
-  background: #fffdf8;
+  background: #f3f1ea;
   color: var(--ink);
   border-radius: 14px;
   padding: 12px 14px;
