@@ -128,11 +128,16 @@
                   </label>
                   <label>
                     <span>Who / what?</span>
-                    <input id="assistant-subject-input" type="text" class="portal-input" placeholder="Ezra, Ireal and Nick, or 2" />
+                    <div id="assistant-person-picker" class="assistant-person-picker">
+                      <input id="assistant-subject-search" type="text" class="portal-input assistant-person-search" placeholder="Search and select one or more people" autocomplete="off" />
+                      <div id="assistant-subject-selected" class="assistant-person-selected hidden"></div>
+                      <div id="assistant-subject-options" class="assistant-person-options hidden"></div>
+                      <input id="assistant-subject-input" type="hidden" />
+                    </div>
                   </label>
                   <label>
                     <span>Assignment</span>
-                    <select id="assistant-assignment-select" class="portal-input"></select>
+                    <select id="assistant-assignment-select" class="portal-input"><option value="">Choose assignment</option></select>
                   </label>
                   <label>
                     <span>When?</span>
@@ -268,7 +273,7 @@
                   </label>
                   <label>
                     <span>Assignment</span>
-                    <select id="compact-assistant-assignment-select" class="portal-input"></select>
+                    <select id="compact-assistant-assignment-select" class="portal-input"><option value="">Choose assignment</option></select>
                   </label>
                   <label>
                     <span>When?</span>

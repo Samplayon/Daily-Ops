@@ -2373,6 +2373,10 @@ const chatgptStatus = document.getElementById("chatgpt-status");
 const resetDataButton = document.getElementById("reset-data");
 const assistantGoalSelect = document.getElementById("assistant-goal-select");
 const assistantSubjectInput = document.getElementById("assistant-subject-input");
+const assistantSubjectSearch = document.getElementById("assistant-subject-search");
+const assistantSubjectSelected = document.getElementById("assistant-subject-selected");
+const assistantSubjectOptions = document.getElementById("assistant-subject-options");
+const assistantPersonPicker = document.getElementById("assistant-person-picker");
 const assistantAssignmentSelect = document.getElementById("assistant-assignment-select");
 const assistantTimeInput = document.getElementById("assistant-time-input");
 const assistantNotesInput = document.getElementById("assistant-notes-input");
@@ -3360,20 +3364,25 @@ function refreshAssignmentControls() {
   ].forEach(([select, currentValue]) => {
     if (!select) return;
     select.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = liveAssignments.length ? "Choose assignment" : "No assignments available";
+    placeholder.disabled = !liveAssignments.length;
+    placeholder.selected = true;
+    select.appendChild(placeholder);
     liveAssignments.forEach((assignment) => {
       const option = document.createElement("option");
       option.value = assignment;
       option.textContent = assignment;
       select.appendChild(option);
     });
-    if ([...select.options].some((option) => option.value === currentValue)) {
+    if (currentValue && [...select.options].some((option) => option.value === currentValue)) {
       select.value = currentValue;
-    } else if (select.options.length) {
-      select.selectedIndex = 0;
     }
   });
 
   refreshAssistantSubjectSuggestions();
+  renderAssistantSubjectPicker();
   renderCompactAssistantSubjectPicker();
 }
 
@@ -3832,12 +3841,17 @@ function renderAssistantScopeButtons() {
 
 function syncAssistantBuilder() {
   const goal = assistantGoalSelect?.value || "move";
-  if (!assistantSubjectInput || !assistantTimeInput || !assistantNotesInput || !assistantAssignmentSelect) return;
+  if (!assistantSubjectInput || !assistantTimeInput || !assistantNotesInput || !assistantAssignmentSelect || !assistantSubjectSearch) return;
   if (assistantAssignmentManager) {
     assistantAssignmentManager.classList.toggle("hidden", goal !== "assignment");
   }
 
   if (goal === "coverage") {
+    assistantSubjectInput.value = assistantSubjectSearch.value.trim() || assistantSubjectInput.value.trim();
+    assistantSubjectSearch.placeholder = "2, 3, 5, or everyone qualified";
+    assistantAssignmentSelect.disabled = false;
+    assistantPickerOpen = false;
+    renderAssistantSubjectPicker();
     assistantBuildRequestButton.classList.remove("hidden");
     assistantSubjectInput.closest("label")?.classList.remove("hidden");
     assistantAssignmentSelect.closest("label")?.classList.remove("hidden");
@@ -3869,10 +3883,11 @@ function syncAssistantBuilder() {
     assistantAssignmentSelect.closest("label")?.classList.remove("hidden");
     assistantTimeInput.closest("label")?.classList.remove("hidden");
     assistantNotesInput.closest("label")?.classList.remove("hidden");
-    assistantSubjectInput.placeholder = "Ezra or Ireal";
     assistantTimeInput.placeholder = "today or from 2-5";
     assistantNotesInput.placeholder = "optional extra details";
     assistantAssignmentSelect.disabled = true;
+    assistantPickerOpen = true;
+    renderAssistantSubjectPicker();
     return;
   }
 
@@ -3903,15 +3918,23 @@ function syncAssistantBuilder() {
   assistantAssignmentSelect.closest("label")?.classList.remove("hidden");
   assistantTimeInput.closest("label")?.classList.remove("hidden");
   assistantNotesInput.closest("label")?.classList.remove("hidden");
-  assistantSubjectInput.placeholder = "Ezra, Tyler, or Ireal and Nick";
+  assistantSubjectInput.value = canonicalizeAssistantSubjectValue(assistantSubjectInput.value, goal);
   assistantTimeInput.placeholder = "from 2-5 or all day";
   assistantNotesInput.placeholder = "make it fair, support only, avoid moving Ezra";
   assistantAssignmentSelect.disabled = false;
+  if (!assistantSubjectSearch.matches(":focus")) {
+    assistantSubjectSearch.value = "";
+  }
+  assistantPickerOpen = true;
+  renderAssistantSubjectPicker();
 }
 
 function buildAssistantRequestFromForm() {
   const goal = assistantGoalSelect?.value || "move";
-  const subject = assistantSubjectInput?.value.trim() || "";
+  const rawSubject = goal === "coverage"
+    ? (assistantSubjectSearch?.value.trim() || assistantSubjectInput?.value.trim() || "")
+    : (assistantSubjectInput?.value.trim() || "");
+  const subject = canonicalizeAssistantSubjectValue(rawSubject, goal);
   const assignment = assistantAssignmentSelect?.value || "";
   const when = assistantTimeInput?.value.trim() || "";
   const notes = assistantNotesInput?.value.trim() || "";
@@ -4008,7 +4031,88 @@ function refreshAssistantSubjectSuggestions() {
   });
 }
 
+let assistantPickerOpen = false;
 let compactAssistantPickerOpen = false;
+
+function getAssistantSelectedPeople() {
+  return (assistantSubjectInput?.value || "")
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function setAssistantSelectedPeople(names) {
+  if (!assistantSubjectInput) return;
+  const uniqueNames = [...new Set((names || []).map((name) => String(name || "").trim()).filter(Boolean))];
+  assistantSubjectInput.value = uniqueNames.join(", ");
+  renderAssistantSubjectPicker();
+}
+
+function toggleAssistantSelectedPerson(name) {
+  const current = getAssistantSelectedPeople();
+  if (current.includes(name)) {
+    setAssistantSelectedPeople(current.filter((personName) => personName !== name));
+  } else {
+    setAssistantSelectedPeople([...current, name]);
+  }
+}
+
+function renderAssistantSubjectPicker() {
+  if (!assistantSubjectSearch || !assistantSubjectSelected || !assistantSubjectOptions) return;
+  const goal = assistantGoalSelect?.value || "move";
+  const usesNamePicker = shouldUseAssistantNamePicker(goal);
+  const names = getAssistantRosterNames();
+  const selected = getAssistantSelectedPeople();
+
+  assistantSubjectSelected.innerHTML = "";
+  selected.forEach((name) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "assistant-person-chip";
+    chip.innerHTML = `<span>${name}</span><span aria-hidden="true">×</span>`;
+    chip.addEventListener("click", () => toggleAssistantSelectedPerson(name));
+    assistantSubjectSelected.appendChild(chip);
+  });
+  assistantSubjectSelected.classList.toggle("hidden", !usesNamePicker || selected.length === 0);
+
+  assistantSubjectSearch.classList.toggle("assistant-person-search-active", usesNamePicker);
+  assistantSubjectOptions.classList.toggle("hidden", !usesNamePicker || !assistantPickerOpen);
+
+  if (!usesNamePicker) {
+    assistantSubjectSearch.placeholder = "2, 3, 5, or everyone qualified";
+    assistantSubjectOptions.innerHTML = "";
+    assistantSubjectSearch.value = assistantSubjectInput?.value || assistantSubjectSearch.value || "";
+    return;
+  }
+
+  assistantSubjectSearch.placeholder = "Search and select one or more people";
+  const query = normalizeText(assistantSubjectSearch.value || "");
+  const filtered = names.filter((name) => !query || normalizeText(name).includes(query));
+
+  assistantSubjectOptions.innerHTML = "";
+  filtered.forEach((name) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "assistant-person-option";
+    if (selected.includes(name)) option.classList.add("selected");
+    option.innerHTML = `<span>${name}</span>${selected.includes(name) ? '<span class="assistant-person-option-check">Selected</span>' : ""}`;
+    option.addEventListener("click", () => {
+      toggleAssistantSelectedPerson(name);
+      assistantSubjectSearch.value = "";
+      assistantPickerOpen = true;
+      renderAssistantSubjectPicker();
+      assistantSubjectSearch.focus();
+    });
+    assistantSubjectOptions.appendChild(option);
+  });
+
+  if (!filtered.length) {
+    const empty = document.createElement("div");
+    empty.className = "assistant-person-empty";
+    empty.textContent = "No matching people";
+    assistantSubjectOptions.appendChild(empty);
+  }
+}
 
 function getCompactAssistantSelectedPeople() {
   return (compactAssistantSubjectInput?.value || "")
@@ -9655,11 +9759,28 @@ skillsSearchInput?.addEventListener("input", (event) => {
   renderSkillsMatrix(getSkillsMatrixTeam());
 });
 assistantGoalSelect.addEventListener("change", syncAssistantBuilder);
+assistantSubjectSearch?.addEventListener("focus", () => {
+  if (shouldUseAssistantNamePicker(assistantGoalSelect?.value || "move")) {
+    assistantPickerOpen = true;
+    renderAssistantSubjectPicker();
+  }
+});
+assistantSubjectSearch?.addEventListener("input", () => {
+  if (shouldUseAssistantNamePicker(assistantGoalSelect?.value || "move")) {
+    assistantPickerOpen = true;
+    renderAssistantSubjectPicker();
+    return;
+  }
+  if (assistantSubjectInput) {
+    assistantSubjectInput.value = assistantSubjectSearch.value.trim();
+  }
+});
 assistantSubjectInput?.addEventListener("blur", () => {
   assistantSubjectInput.value = canonicalizeAssistantSubjectValue(
     assistantSubjectInput.value,
     assistantGoalSelect?.value || "move"
   );
+  renderAssistantSubjectPicker();
 });
 compactAssistantGoalSelect?.addEventListener("change", syncCompactAssistantBuilder);
 compactAssistantSubjectSearch?.addEventListener("focus", () => {
@@ -9765,8 +9886,11 @@ agentAlertScope.addEventListener("change", () => {
   render();
 });
 document.addEventListener("click", (event) => {
-  if (!compactAssistantPersonPicker) return;
-  if (!compactAssistantPersonPicker.contains(event.target)) {
+  if (assistantPersonPicker && !assistantPersonPicker.contains(event.target)) {
+    assistantPickerOpen = false;
+    renderAssistantSubjectPicker();
+  }
+  if (compactAssistantPersonPicker && !compactAssistantPersonPicker.contains(event.target)) {
     compactAssistantPickerOpen = false;
     renderCompactAssistantSubjectPicker();
   }
