@@ -2377,6 +2377,16 @@ const assistantAssignmentSelect = document.getElementById("assistant-assignment-
 const assistantTimeInput = document.getElementById("assistant-time-input");
 const assistantNotesInput = document.getElementById("assistant-notes-input");
 const assistantBuildRequestButton = document.getElementById("assistant-build-request");
+const compactAssistantGoalSelect = document.getElementById("compact-assistant-goal-select");
+const compactAssistantSubjectInput = document.getElementById("compact-assistant-subject-input");
+const compactAssistantSubjectSearch = document.getElementById("compact-assistant-subject-search");
+const compactAssistantSubjectSelected = document.getElementById("compact-assistant-subject-selected");
+const compactAssistantSubjectOptions = document.getElementById("compact-assistant-subject-options");
+const compactAssistantPersonPicker = document.getElementById("compact-assistant-person-picker");
+const compactAssistantAssignmentSelect = document.getElementById("compact-assistant-assignment-select");
+const compactAssistantTimeInput = document.getElementById("compact-assistant-time-input");
+const compactAssistantApplyButton = document.getElementById("compact-assistant-apply");
+const assistantInlineFeedback = document.getElementById("assistant-inline-feedback");
 const assistantAssignmentManager = document.getElementById("assistant-assignment-manager");
 const assistantNewAssignmentInput = document.getElementById("assistant-new-assignment-input");
 const assistantAddAssignmentButton = document.getElementById("assistant-add-assignment");
@@ -3251,7 +3261,8 @@ function refreshAssignmentCollections() {
 
 function refreshAssignmentControls() {
   const currentAssignmentFilter = assignmentFilter.value;
-  const currentAssistantAssignment = assistantAssignmentSelect.value;
+  const currentAssistantAssignment = assistantAssignmentSelect?.value || "";
+  const currentCompactAssistantAssignment = compactAssistantAssignmentSelect?.value || "";
 
   assignmentFilter.innerHTML = "";
   assignmentOptions.forEach((assignment) => {
@@ -3262,18 +3273,28 @@ function refreshAssignmentControls() {
   });
   assignmentFilter.value = assignmentOptions.includes(currentAssignmentFilter) ? currentAssignmentFilter : "all";
 
-  assistantAssignmentSelect.innerHTML = "";
-  [...assignmentOptions]
-    .filter((assignment) => !["all", "Open"].includes(assignment))
-    .forEach((assignment) => {
+  const liveAssignments = [...assignmentOptions].filter((assignment) => !["all", "Open"].includes(assignment));
+  [
+    [assistantAssignmentSelect, currentAssistantAssignment],
+    [compactAssistantAssignmentSelect, currentCompactAssistantAssignment],
+  ].forEach(([select, currentValue]) => {
+    if (!select) return;
+    select.innerHTML = "";
+    liveAssignments.forEach((assignment) => {
       const option = document.createElement("option");
       option.value = assignment;
       option.textContent = assignment;
-      assistantAssignmentSelect.appendChild(option);
+      select.appendChild(option);
     });
-  if ([...assistantAssignmentSelect.options].some((option) => option.value === currentAssistantAssignment)) {
-    assistantAssignmentSelect.value = currentAssistantAssignment;
-  }
+    if ([...select.options].some((option) => option.value === currentValue)) {
+      select.value = currentValue;
+    } else if (select.options.length) {
+      select.selectedIndex = 0;
+    }
+  });
+
+  refreshAssistantSubjectSuggestions();
+  renderCompactAssistantSubjectPicker();
 }
 
 function removeAssignmentEverywhere(assignment) {
@@ -3839,6 +3860,213 @@ function buildAssistantRequestFromForm() {
 
   commandInput.value = text.trim();
   commandInput.focus();
+}
+
+function getAssistantRosterNames() {
+  return [...new Set(team.map((person) => person.name).filter(Boolean))].sort((left, right) =>
+    left.localeCompare(right)
+  );
+}
+
+function ensureSubjectDatalist(input, id) {
+  if (!input) return null;
+  let datalist = document.getElementById(id);
+  if (!datalist) {
+    datalist = document.createElement("datalist");
+    datalist.id = id;
+    document.body.appendChild(datalist);
+  }
+  input.setAttribute("list", id);
+  return datalist;
+}
+
+function matchAssistantRosterName(token) {
+  const normalizedToken = normalizeText(token || "");
+  if (!normalizedToken) return "";
+  const names = getAssistantRosterNames();
+  const exact = names.find((name) => normalizeText(name) === normalizedToken);
+  if (exact) return exact;
+  const startsWithMatch = names.find((name) => normalizeText(name).startsWith(normalizedToken));
+  if (startsWithMatch) return startsWithMatch;
+  const includesMatch = names.find((name) => normalizeText(name).includes(normalizedToken));
+  return includesMatch || "";
+}
+
+function shouldUseAssistantNamePicker(goal) {
+  return goal !== "coverage";
+}
+
+function canonicalizeAssistantSubjectValue(value, goal) {
+  if (!shouldUseAssistantNamePicker(goal)) return String(value || "").trim();
+  const normalized = String(value || "")
+    .replace(/\s+and\s+/gi, ",")
+    .replace(/\s*&\s*/g, ",")
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
+  const canonical = [];
+  normalized.forEach((token) => {
+    const matched = matchAssistantRosterName(token) || token;
+    if (!canonical.includes(matched)) canonical.push(matched);
+  });
+  return canonical.join(", ");
+}
+
+function refreshAssistantSubjectSuggestions() {
+  const names = getAssistantRosterNames();
+  [
+    [assistantSubjectInput, "assistant-subject-suggestions"],
+  ].forEach(([input, id]) => {
+    const datalist = ensureSubjectDatalist(input, id);
+    if (!input || !datalist) return;
+    datalist.innerHTML = "";
+    names.forEach((name) => {
+      const option = document.createElement("option");
+      option.value = name;
+      datalist.appendChild(option);
+    });
+  });
+}
+
+let compactAssistantPickerOpen = false;
+
+function getCompactAssistantSelectedPeople() {
+  return (compactAssistantSubjectInput?.value || "")
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function setCompactAssistantSelectedPeople(names) {
+  if (!compactAssistantSubjectInput) return;
+  const uniqueNames = [...new Set((names || []).map((name) => String(name || "").trim()).filter(Boolean))];
+  compactAssistantSubjectInput.value = uniqueNames.join(", ");
+  renderCompactAssistantSubjectPicker();
+}
+
+function toggleCompactAssistantSelectedPerson(name) {
+  const current = getCompactAssistantSelectedPeople();
+  if (current.includes(name)) {
+    setCompactAssistantSelectedPeople(current.filter((personName) => personName !== name));
+  } else {
+    setCompactAssistantSelectedPeople([...current, name]);
+  }
+}
+
+function renderCompactAssistantSubjectPicker() {
+  if (!compactAssistantSubjectSearch || !compactAssistantSubjectSelected || !compactAssistantSubjectOptions) return;
+  const goal = compactAssistantGoalSelect?.value || "move";
+  const usesNamePicker = shouldUseAssistantNamePicker(goal);
+  const names = getAssistantRosterNames();
+  const selected = getCompactAssistantSelectedPeople();
+
+  compactAssistantSubjectSelected.innerHTML = "";
+  selected.forEach((name) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "assistant-person-chip";
+    chip.innerHTML = `<span>${name}</span><span aria-hidden="true">×</span>`;
+    chip.addEventListener("click", () => toggleCompactAssistantSelectedPerson(name));
+    compactAssistantSubjectSelected.appendChild(chip);
+  });
+  compactAssistantSubjectSelected.classList.toggle("hidden", !usesNamePicker || selected.length === 0);
+
+  compactAssistantSubjectSearch.classList.toggle("assistant-person-search-active", usesNamePicker);
+  compactAssistantSubjectOptions.classList.toggle("hidden", !usesNamePicker || !compactAssistantPickerOpen);
+
+  if (!usesNamePicker) {
+    compactAssistantSubjectSearch.placeholder = "2, 3, 5, or everyone qualified";
+    compactAssistantSubjectOptions.innerHTML = "";
+    compactAssistantSubjectSearch.value = compactAssistantSubjectInput?.value || compactAssistantSubjectSearch.value || "";
+    return;
+  }
+
+  compactAssistantSubjectSearch.placeholder = "Search and select one or more people";
+  const query = normalizeText(compactAssistantSubjectSearch.value || "");
+  const filtered = names.filter((name) => !query || normalizeText(name).includes(query));
+
+  compactAssistantSubjectOptions.innerHTML = "";
+  filtered.forEach((name) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "assistant-person-option";
+    if (selected.includes(name)) {
+      option.classList.add("selected");
+    }
+    option.innerHTML = `<span>${name}</span>${selected.includes(name) ? '<span class="assistant-person-option-check">Selected</span>' : ""}`;
+    option.addEventListener("click", () => {
+      toggleCompactAssistantSelectedPerson(name);
+      compactAssistantSubjectSearch.value = "";
+      compactAssistantPickerOpen = true;
+      renderCompactAssistantSubjectPicker();
+      compactAssistantSubjectSearch.focus();
+    });
+    compactAssistantSubjectOptions.appendChild(option);
+  });
+
+  if (!filtered.length) {
+    const empty = document.createElement("div");
+    empty.className = "assistant-person-empty";
+    empty.textContent = "No matching people";
+    compactAssistantSubjectOptions.appendChild(empty);
+  }
+}
+
+function syncCompactAssistantBuilder() {
+  const goal = compactAssistantGoalSelect?.value || "move";
+  if (!compactAssistantSubjectInput || !compactAssistantAssignmentSelect || !compactAssistantTimeInput || !compactAssistantSubjectSearch) return;
+
+  if (goal === "coverage") {
+    compactAssistantSubjectInput.value = compactAssistantSubjectSearch.value.trim() || compactAssistantSubjectInput.value.trim();
+    compactAssistantTimeInput.placeholder = "from 2-5 or all day";
+    compactAssistantAssignmentSelect.disabled = false;
+    compactAssistantPickerOpen = false;
+    renderCompactAssistantSubjectPicker();
+    return;
+  }
+
+  compactAssistantSubjectInput.value = canonicalizeAssistantSubjectValue(compactAssistantSubjectInput.value, goal);
+  compactAssistantTimeInput.placeholder = goal === "out" ? "today or from 2-5" : "from 2-5 or all day";
+  compactAssistantAssignmentSelect.disabled = goal === "out";
+  if (!compactAssistantSubjectSearch.matches(":focus")) {
+    compactAssistantSubjectSearch.value = "";
+  }
+  renderCompactAssistantSubjectPicker();
+}
+
+function buildCompactAssistantRequestFromForm() {
+  const goal = compactAssistantGoalSelect?.value || "move";
+  const rawSubject = goal === "coverage"
+    ? (compactAssistantSubjectSearch?.value.trim() || compactAssistantSubjectInput?.value.trim() || "")
+    : (compactAssistantSubjectInput?.value.trim() || "");
+  const subject = canonicalizeAssistantSubjectValue(rawSubject, goal);
+  const assignment = compactAssistantAssignmentSelect?.value || "";
+  const when = compactAssistantTimeInput?.value.trim() || "";
+  const countText = subject.replace(/\bpeople\b/gi, "").trim();
+
+  if (goal === "coverage") {
+    return `We need ${countText || "2"} people on ${assignment}${when ? ` ${when}` : " all day"}.`;
+  }
+  if (goal === "out") {
+    return `${subject || "This person"} is out${when ? ` ${when}` : " today"}.`;
+  }
+  return `Move ${subject || "these people"} to ${assignment}${when ? ` ${when}` : ""}.`.trim();
+}
+
+async function submitCompactAssistantRequest() {
+  const text = buildCompactAssistantRequestFromForm();
+  if (!text) return;
+  if (assistantInlineFeedback) {
+    assistantInlineFeedback.classList.add("hidden");
+    assistantInlineFeedback.textContent = "";
+  }
+  commandInput.value = text;
+  await submitChatRequest();
+  if (assistantInlineFeedback) {
+    const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
+    assistantInlineFeedback.textContent = latestAssistantMessage?.text || "Request reviewed.";
+    assistantInlineFeedback.classList.remove("hidden");
+  }
 }
 
 function normalizeText(value) {
@@ -9323,7 +9551,31 @@ shiftSearchInput?.addEventListener("input", (event) => {
   renderShiftEditor();
 });
 assistantGoalSelect.addEventListener("change", syncAssistantBuilder);
+assistantSubjectInput?.addEventListener("blur", () => {
+  assistantSubjectInput.value = canonicalizeAssistantSubjectValue(
+    assistantSubjectInput.value,
+    assistantGoalSelect?.value || "move"
+  );
+});
+compactAssistantGoalSelect?.addEventListener("change", syncCompactAssistantBuilder);
+compactAssistantSubjectSearch?.addEventListener("focus", () => {
+  if (shouldUseAssistantNamePicker(compactAssistantGoalSelect?.value || "move")) {
+    compactAssistantPickerOpen = true;
+    renderCompactAssistantSubjectPicker();
+  }
+});
+compactAssistantSubjectSearch?.addEventListener("input", () => {
+  if (shouldUseAssistantNamePicker(compactAssistantGoalSelect?.value || "move")) {
+    compactAssistantPickerOpen = true;
+    renderCompactAssistantSubjectPicker();
+    return;
+  }
+  if (compactAssistantSubjectInput) {
+    compactAssistantSubjectInput.value = compactAssistantSubjectSearch.value.trim();
+  }
+});
 assistantBuildRequestButton.addEventListener("click", buildAssistantRequestFromForm);
+compactAssistantApplyButton?.addEventListener("click", submitCompactAssistantRequest);
 sendMessageButton.addEventListener("click", submitChatRequest);
 sendToChatgptButton.addEventListener("click", openScheduleInChatgpt);
 applyPlanButton.addEventListener("click", applyPendingPlan);
@@ -9408,6 +9660,14 @@ agentAlertScope.addEventListener("change", () => {
   });
   render();
 });
+document.addEventListener("click", (event) => {
+  if (!compactAssistantPersonPicker) return;
+  if (!compactAssistantPersonPicker.contains(event.target)) {
+    compactAssistantPickerOpen = false;
+    renderCompactAssistantSubjectPicker();
+  }
+});
+
 agentAlertSoundEnabled?.addEventListener("change", () => {
   saveCurrentAgentPreferences({
     alertSoundEnabled: agentAlertSoundEnabled.checked,
@@ -9472,6 +9732,9 @@ assistantNewAssignmentInput?.addEventListener("keydown", (event) => {
 });
 
 setupVoiceInput();
+syncAssistantBuilder();
+syncCompactAssistantBuilder();
+refreshAssistantSubjectSuggestions();
 startNotificationWatcher();
 archivePreviewDetails?.addEventListener("toggle", () => {
   if (archivePreviewSummaryAction) {

@@ -240,7 +240,6 @@
                   <h2>Assignment Graph</h2>
                   <p>Visual coverage by time block across the day.</p>
                 </div>
-                <button id="assignment-graph-expand" type="button" class="secondary-button assignment-graph-expand-button">Expand</button>
               </div>
               <section class="assistant-compact-card">
                 <div class="assistant-compact-header">
@@ -258,9 +257,14 @@
                       <option value="out">Mark someone out</option>
                     </select>
                   </label>
-                  <label>
+                  <label class="assistant-person-picker-field">
                     <span>Who / what?</span>
-                    <input id="compact-assistant-subject-input" type="text" class="portal-input" placeholder="Ezra, Tyler, or Ireal and Nick" />
+                    <div id="compact-assistant-person-picker" class="assistant-person-picker">
+                      <input id="compact-assistant-subject-search" type="text" class="portal-input assistant-person-search" placeholder="Search and select one or more people" autocomplete="off" />
+                      <div id="compact-assistant-subject-selected" class="assistant-person-selected hidden"></div>
+                      <div id="compact-assistant-subject-options" class="assistant-person-options hidden"></div>
+                      <input id="compact-assistant-subject-input" type="hidden" />
+                    </div>
                   </label>
                   <label>
                     <span>Assignment</span>
@@ -328,6 +332,9 @@
                   <div id="out-only-names" class="out-list"></div>
                 </section>
               </section>
+              <div class="assignment-graph-actions">
+                <button id="assignment-graph-expand" type="button" class="secondary-button assignment-graph-expand-button">Expand</button>
+              </div>
               <div id="assignment-chart" class="assignment-chart"></div>
             </section>
 
