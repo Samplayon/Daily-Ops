@@ -2425,6 +2425,13 @@ const agentAlertSoundEnabled = document.getElementById("agent-alert-sound-enable
 const agentEnableNotificationsButton = document.getElementById("agent-enable-notifications");
 const agentTestAlertButton = document.getElementById("agent-test-alert");
 const agentAlertStatus = document.getElementById("agent-alert-status");
+const agentLogType = document.getElementById("agent-log-type");
+const agentLogTime = document.getElementById("agent-log-time");
+const agentLogNotes = document.getElementById("agent-log-notes");
+const agentLogSubmit = document.getElementById("agent-log-submit");
+const agentLogClear = document.getElementById("agent-log-clear");
+const agentLogStatus = document.getElementById("agent-log-status");
+const agentLogRecent = document.getElementById("agent-log-recent");
 const agentHeroName = document.getElementById("agent-hero-name");
 const agentNameStat = document.getElementById("agent-name-stat");
 const agentScheduleStat = document.getElementById("agent-schedule-stat");
@@ -2457,6 +2464,9 @@ const reshuffleReportCard = document.getElementById("reshuffle-report-card");
 const adminPasswordCard = document.getElementById("admin-password-card");
 const auditLogPanel = document.getElementById("audit-log-panel");
 const auditLogList = document.getElementById("audit-log-list");
+const specialistLogsPanel = document.getElementById("specialist-logs-panel");
+const specialistLogsSearchInput = document.getElementById("specialist-logs-search");
+const specialistLogsList = document.getElementById("specialist-logs-list");
 const archivesList = document.getElementById("archives-list");
 const archivePreview = document.getElementById("archive-preview");
 const archivePreviewDetails = document.getElementById("archive-preview-details");
@@ -2575,6 +2585,7 @@ function collapseAssignmentGraph() {
 const shiftOverrideStorageKey = "daily-ops-shift-overrides-v1";
 const reshuffleReportStorageKey = "daily-ops-reshuffle-report-v1";
 const auditLogFallbackStorageKey = "daily-ops-audit-log-v1";
+const specialistLogsFallbackStorageKey = "daily-ops-specialist-logs-v1";
 const adminPasswordsStorageKey = "daily-ops-admin-passwords-v1";
 const skillsMatrixStorageKey = "daily-ops-skills-matrix-v1";
 const shiftTimeOptions = Array.from({ length: 17 }, (_, index) => 8 + index);
@@ -2582,6 +2593,19 @@ let auditLogEntries = [];
 let auditLogLoaded = false;
 let auditLogLoading = false;
 let auditLogError = "";
+const specialistLogsFallbackStorageKey = "daily-ops-specialist-logs-v1";
+let specialistLogEntries = [];
+let specialistLogsLoaded = false;
+let specialistLogsLoading = false;
+let specialistLogsError = "";
+let specialistLogsSearchTerm = "";
+let agentLogStatusState = { message: "Managers will be able to see saved notes in the admin log view.", tone: "" };
+let specialistLogEntries = [];
+let specialistLogsLoaded = false;
+let specialistLogsLoading = false;
+let specialistLogsError = "";
+let specialistLogsSearchTerm = "";
+let agentLogStatusState = { message: "Nothing saved yet.", tone: "" };
 let adminPasswordsState = null;
 let adminPasswordSaveState = {
   message: "",
@@ -3258,6 +3282,12 @@ try {
 } catch (error) {
   console.error("Portal agent select bootstrap failed", error);
 }
+
+try {
+  void refreshSpecialistLogs();
+} catch (error) {
+  console.error("Specialist logs bootstrap failed", error);
+}
 try {
   populateAdminIdentitySelect();
 } catch (error) {
@@ -3894,6 +3924,7 @@ async function refreshAuditLog(force = false) {
     auditLogLoaded = true;
     auditLogError = "";
     renderAuditLog();
+  renderAgentLogPanel();
     return;
   }
 
@@ -3902,6 +3933,7 @@ async function refreshAuditLog(force = false) {
     auditLogLoaded = false;
   }
   renderAuditLog();
+  renderAgentLogPanel();
 
   try {
     const response = await fetch("/api/audit-log");
@@ -3920,6 +3952,7 @@ async function refreshAuditLog(force = false) {
   } finally {
     auditLogLoading = false;
     renderAuditLog();
+  renderAgentLogPanel();
   }
 }
 
@@ -3942,6 +3975,7 @@ async function appendAuditLogEntry({ actionType, summary, details = [] }) {
   auditLogLoaded = true;
   if (canCurrentAdminViewAuditLog()) {
     renderAuditLog();
+  renderAgentLogPanel();
   }
 
   if (!backendAvailable) return;
@@ -3961,12 +3995,14 @@ async function appendAuditLogEntry({ actionType, summary, details = [] }) {
       saveFallbackAuditLog(auditLogEntries);
       if (canCurrentAdminViewAuditLog()) {
         renderAuditLog();
+  renderAgentLogPanel();
       }
     }
   } catch (error) {
     auditLogError = error.message;
     if (canCurrentAdminViewAuditLog()) {
       renderAuditLog();
+  renderAgentLogPanel();
     }
   }
 }
@@ -4018,6 +4054,197 @@ function renderAuditLog() {
         </div>
       `;
     })
+    .join("");
+}
+
+function loadFallbackSpecialistLogs() {
+  try {
+    const raw = window.localStorage.getItem(specialistLogsFallbackStorageKey);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveFallbackSpecialistLogs(entries) {
+  try {
+    window.localStorage.setItem(specialistLogsFallbackStorageKey, JSON.stringify(Array.isArray(entries) ? entries : []));
+  } catch {
+    // Ignore storage errors so the UI still works.
+  }
+}
+
+function normalizeFrontendSpecialistLogEntry(entry) {
+  return {
+    id: String(entry?.id || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`),
+    specialistId: String(entry?.specialistId || "").trim(),
+    specialistName: String(entry?.specialistName || "Unknown specialist").trim() || "Unknown specialist",
+    manager: String(entry?.manager || "Unknown manager").trim() || "Unknown manager",
+    title: String(entry?.title || "").trim(),
+    eventType: String(entry?.eventType || "Note").trim() || "Note",
+    timeLabel: String(entry?.timeLabel || "").trim(),
+    notes: String(entry?.notes || "").trim(),
+    createdAt: String(entry?.createdAt || new Date().toISOString()),
+  };
+}
+
+async function refreshSpecialistLogs(force = false) {
+  if (specialistLogsLoading && !force) return;
+
+  if (!backendAvailable) {
+    specialistLogEntries = loadFallbackSpecialistLogs().map(normalizeFrontendSpecialistLogEntry);
+    specialistLogsLoaded = true;
+    specialistLogsError = "";
+    renderSpecialistLogsPanel();
+    renderAgentLogPanel();
+    return;
+  }
+
+  specialistLogsLoading = true;
+  if (force) specialistLogsLoaded = false;
+  renderSpecialistLogsPanel();
+  renderAgentLogPanel();
+
+  try {
+    const response = await fetch("/api/specialist-logs");
+    const payload = parseJsonSafely(await response.text(), {});
+    if (!response.ok) {
+      throw new Error(payload.details || payload.error || "Unable to load specialist logs.");
+    }
+    specialistLogEntries = Array.isArray(payload.entries)
+      ? payload.entries.map(normalizeFrontendSpecialistLogEntry)
+      : [];
+    saveFallbackSpecialistLogs(specialistLogEntries);
+    specialistLogsError = "";
+    specialistLogsLoaded = true;
+  } catch (error) {
+    specialistLogEntries = loadFallbackSpecialistLogs().map(normalizeFrontendSpecialistLogEntry);
+    specialistLogsError = error.message;
+    specialistLogsLoaded = true;
+  } finally {
+    specialistLogsLoading = false;
+    renderSpecialistLogsPanel();
+    renderAgentLogPanel();
+  }
+}
+
+async function appendSpecialistLogEntry(entry) {
+  const normalized = normalizeFrontendSpecialistLogEntry(entry);
+  specialistLogEntries = [normalized, ...loadFallbackSpecialistLogs().map(normalizeFrontendSpecialistLogEntry)].slice(0, 500);
+  saveFallbackSpecialistLogs(specialistLogEntries);
+  specialistLogsLoaded = true;
+  renderSpecialistLogsPanel();
+  renderAgentLogPanel();
+
+  if (!backendAvailable) return specialistLogEntries;
+
+  try {
+    const response = await fetch("/api/specialist-logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entry: normalized }),
+    });
+    const payload = parseJsonSafely(await response.text(), {});
+    if (!response.ok) {
+      throw new Error(payload.details || payload.error || "Unable to save specialist log.");
+    }
+    if (Array.isArray(payload.entries)) {
+      specialistLogEntries = payload.entries.map(normalizeFrontendSpecialistLogEntry);
+      saveFallbackSpecialistLogs(specialistLogEntries);
+    }
+    specialistLogsError = "";
+    renderSpecialistLogsPanel();
+    renderAgentLogPanel();
+    return specialistLogEntries;
+  } catch (error) {
+    specialistLogsError = error.message;
+    renderSpecialistLogsPanel();
+    renderAgentLogPanel();
+    throw error;
+  }
+}
+
+function renderAgentLogPanel() {
+  if (!agentLogRecent || !agentLogStatus) return;
+
+  const person = getPersonById(selectedAgentId);
+  if (!person) {
+    agentLogRecent.innerHTML = `<div class="empty-state">Choose a specialist to start logging.</div>`;
+    agentLogStatus.textContent = "Nothing saved yet.";
+    agentLogStatus.className = "agent-alert-status";
+    return;
+  }
+
+  agentLogStatus.textContent = agentLogStatusState.message || "Nothing saved yet.";
+  agentLogStatus.className = `agent-alert-status${agentLogStatusState.tone ? ` ${agentLogStatusState.tone}` : ""}`;
+
+  const entries = specialistLogEntries
+    .filter((entry) => entry.specialistId === personId(person))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, 6);
+
+  if (!entries.length) {
+    agentLogRecent.innerHTML = `<div class="empty-state">No entries yet. Add a note here and your managers will be able to review it.</div>`;
+    return;
+  }
+
+  agentLogRecent.innerHTML = entries
+    .map((entry) => `
+      <article class="agent-log-entry">
+        <div class="agent-log-entry-top">
+          <strong>${entry.eventType}</strong>
+          <span class="archive-meta">${formatAuditTimestamp(entry.createdAt)}</span>
+        </div>
+        <div class="archive-meta">${entry.timeLabel || "No specific time noted"}</div>
+        <div class="person-meta">${entry.notes || "No details added."}</div>
+      </article>
+    `)
+    .join("");
+}
+
+function renderSpecialistLogsPanel() {
+  if (!specialistLogsList) return;
+
+  const searchTerm = normalizeText(specialistLogsSearchTerm);
+  const entries = specialistLogEntries
+    .filter((entry) => {
+      if (!searchTerm) return true;
+      return normalizeText([
+        entry.specialistName,
+        entry.manager,
+        entry.title,
+        entry.eventType,
+        entry.timeLabel,
+        entry.notes,
+      ].join(" ")).includes(searchTerm);
+    })
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+
+  if (specialistLogsLoading && !specialistLogsLoaded) {
+    specialistLogsList.innerHTML = `<div class="empty-state">Loading specialist logs...</div>`;
+    return;
+  }
+
+  if (!entries.length) {
+    specialistLogsList.innerHTML = `<div class="empty-state">${specialistLogsError || "No specialist logs yet."}</div>`;
+    return;
+  }
+
+  specialistLogsList.innerHTML = entries
+    .map((entry) => `
+      <div class="archive-row active specialist-log-row">
+        <div>
+          <strong>${entry.specialistName}</strong>
+          <div class="archive-meta">${entry.title || "Specialist"} • ${entry.manager} • ${formatAuditTimestamp(entry.createdAt)}</div>
+          <div class="specialist-log-tag-row">
+            <span class="specialist-log-tag">${entry.eventType}</span>
+            ${entry.timeLabel ? `<span class="specialist-log-tag">${entry.timeLabel}</span>` : ""}
+          </div>
+          <div class="person-meta">${entry.notes || "No details added."}</div>
+        </div>
+      </div>
+    `)
     .join("");
 }
 
@@ -6183,6 +6410,10 @@ function setView(nextView) {
   agentShell.classList.toggle("hidden", nextView !== "agent");
   if (nextView === "admin") {
     void refreshAuditLog();
+    void refreshSpecialistLogs();
+  }
+  if (nextView === "agent") {
+    void refreshSpecialistLogs();
   }
 }
 
@@ -9894,6 +10125,8 @@ function renderAgentBoard() {
     })
     .join("");
 
+  renderAgentLogPanel();
+
   agentBoard.innerHTML = `
     <article class="agent-now-card">
       <div class="agent-now-header">
@@ -9958,10 +10191,13 @@ function render() {
   renderSchedulingRules();
   renderAdminPasswordManager();
   renderAutomations();
+  renderSpecialistLogsPanel();
   renderTodayExceptionsCard();
   renderReshufflePreviewCard();
   renderReshuffleReportCard();
   renderAuditLog();
+  renderAgentLogPanel();
+  renderSpecialistLogsPanel();
   renderArchives();
   renderAgentBoard();
   queueArchiveSnapshotSync();
@@ -10011,6 +10247,49 @@ shiftSearchInput?.addEventListener("input", (event) => {
 skillsSearchInput?.addEventListener("input", (event) => {
   skillsSearchTerm = event.target.value || "";
   renderSkillsMatrix(getSkillsMatrixTeam());
+});
+specialistLogsSearchInput?.addEventListener("input", (event) => {
+  specialistLogsSearchTerm = event.target.value || "";
+  renderSpecialistLogsPanel();
+});
+agentLogSubmit?.addEventListener("click", async () => {
+  const person = getPersonById(selectedAgentId);
+  if (!person) return;
+  const notes = String(agentLogNotes?.value || "").trim();
+  const timeLabel = String(agentLogTime?.value || "").trim();
+  const eventType = String(agentLogType?.value || "Long call").trim() || "Long call";
+  if (!notes) {
+    agentLogStatusState = { message: "Add a few details first so your manager has something to review.", tone: "warning" };
+    renderAgentLogPanel();
+    return;
+  }
+  try {
+    await appendSpecialistLogEntry({
+      specialistId: personId(person),
+      specialistName: person.name,
+      manager: person.manager,
+      title: person.title,
+      eventType,
+      timeLabel,
+      notes,
+      createdAt: new Date().toISOString(),
+    });
+    if (agentLogNotes) agentLogNotes.value = "";
+    if (agentLogTime) agentLogTime.value = "";
+    if (agentLogType) agentLogType.value = "Long call";
+    agentLogStatusState = { message: "Saved. Your managers can review that note in Admin > Specialist Logs.", tone: "success" };
+    renderAgentLogPanel();
+  } catch (error) {
+    agentLogStatusState = { message: error.message || "Unable to save that log right now.", tone: "error" };
+    renderAgentLogPanel();
+  }
+});
+agentLogClear?.addEventListener("click", () => {
+  if (agentLogNotes) agentLogNotes.value = "";
+  if (agentLogTime) agentLogTime.value = "";
+  if (agentLogType) agentLogType.value = "Long call";
+  agentLogStatusState = { message: "Cleared. Nothing saved yet.", tone: "" };
+  renderAgentLogPanel();
 });
 assistantGoalSelect.addEventListener("change", syncAssistantBuilder);
 assistantSubjectSearch?.addEventListener("focus", () => {

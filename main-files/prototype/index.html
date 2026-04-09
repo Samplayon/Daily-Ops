@@ -400,6 +400,21 @@
               <div id="admin-password-card"></div>
             </section>
             <section id="today-exceptions-card" class="panel panel-archives nested-panel"></section>
+            <section id="specialist-logs-panel" class="panel panel-archives nested-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>Specialist Logs</h2>
+                  <p>Review specialist notes like long calls, escalations, or anything they need managers to see.</p>
+                </div>
+              </div>
+              <div class="specialist-logs-toolbar">
+                <label class="specialist-logs-search-field">
+                  <span>Search logs</span>
+                  <input id="specialist-logs-search" type="text" class="portal-input" placeholder="Search by name, manager, type, or notes" />
+                </label>
+              </div>
+              <div id="specialist-logs-list" class="archives-list"></div>
+            </section>
             <section id="audit-log-panel" class="panel panel-archives nested-panel hidden">
               <div class="panel-header">
                 <div>
@@ -582,6 +597,45 @@
           </div>
         </section>
 
+        <section class="panel panel-specialist-log">
+          <div class="panel-header">
+            <div>
+              <h2>Work Log</h2>
+              <p>Jot down long calls, escalations, follow-ups, or anything your manager should be able to review later.</p>
+            </div>
+          </div>
+          <div class="agent-log-form-grid">
+            <label>
+              <span>What happened?</span>
+              <select id="agent-log-type" class="portal-input">
+                <option value="Long call">Long call</option>
+                <option value="Escalation">Escalation</option>
+                <option value="Follow-up needed">Follow-up needed</option>
+                <option value="System issue">System issue</option>
+                <option value="Customer issue">Customer issue</option>
+                <option value="Other">Other</option>
+              </select>
+            </label>
+            <label>
+              <span>When?</span>
+              <input id="agent-log-time" type="text" class="portal-input" placeholder="Example: 2p-3p or around 4:15p" />
+            </label>
+          </div>
+          <label class="agent-log-notes-field">
+            <span>Notes</span>
+            <textarea id="agent-log-notes" class="portal-input" rows="4" placeholder="Add the details you want your managers to be able to look back on."></textarea>
+          </label>
+          <div class="command-actions">
+            <button id="agent-log-submit" type="button">Save Log</button>
+            <button id="agent-log-clear" type="button" class="secondary-button">Clear</button>
+          </div>
+          <div id="agent-log-status" class="agent-alert-status">Nothing saved yet.</div>
+          <div>
+            <div class="time-subtitle">Recent entries</div>
+            <div id="agent-log-recent" class="agent-log-recent"></div>
+          </div>
+        </section>
+
         <section class="panel panel-personalize-small">
           <div class="panel-header">
             <div>
@@ -611,6 +665,6 @@
       </main>
     </div>
 
-    <script src="./app.js?v=202604071223"></script>
+    <script src="./app.js?v=202604091405"></script>
   </body>
 </html>

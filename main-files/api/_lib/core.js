@@ -7,6 +7,7 @@ const AUDIT_LOG_OBJECT = "__config__-audit-log.json";
 const ADMIN_PASSWORDS_OBJECT = "__config__-admin-passwords.json";
 const CUSTOM_ASSIGNMENTS_OBJECT = "__config__-custom-assignments.json";
 const SKILLS_MATRIX_OBJECT = "__config__-skills-matrix.json";
+const SPECIALIST_LOGS_OBJECT = "__config__-specialist-logs.json";
 
 const PLAN_SCHEMA = {
   type: "object",
@@ -335,6 +336,10 @@ function defaultSkillsMatrix() {
   return {};
 }
 
+function defaultSpecialistLogs() {
+  return [];
+}
+
 function normalizeCustomAssignments(payload) {
   return Array.isArray(payload)
     ? [...new Set(payload.map((entry) => String(entry || "").trim()).filter(Boolean))]
@@ -381,6 +386,20 @@ function normalizeAuditEntry(entry) {
     details: Array.isArray(entry?.details)
       ? entry.details.map((detail) => String(detail || "").trim()).filter(Boolean)
       : [],
+    createdAt: String(entry?.createdAt || new Date().toISOString()),
+  };
+}
+
+function normalizeSpecialistLogEntry(entry) {
+  return {
+    id: String(entry?.id || `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`),
+    specialistId: String(entry?.specialistId || "").trim(),
+    specialistName: String(entry?.specialistName || "Unknown specialist").trim() || "Unknown specialist",
+    manager: String(entry?.manager || "Unknown manager").trim() || "Unknown manager",
+    title: String(entry?.title || "").trim(),
+    eventType: String(entry?.eventType || "Note").trim() || "Note",
+    timeLabel: String(entry?.timeLabel || "").trim(),
+    notes: String(entry?.notes || "").trim(),
     createdAt: String(entry?.createdAt || new Date().toISOString()),
   };
 }
@@ -505,6 +524,36 @@ async function writeSkillsMatrix(skillsMatrix) {
     Buffer.from(JSON.stringify(normalized, null, 2))
   );
   return normalized;
+}
+
+async function readSpecialistLogs() {
+  try {
+    const { body } = await downloadObject(SPECIALIST_LOGS_OBJECT);
+    const parsed = JSON.parse(body.toString("utf8") || "[]");
+    return Array.isArray(parsed) ? parsed.map(normalizeSpecialistLogEntry) : defaultSpecialistLogs();
+  } catch {
+    return defaultSpecialistLogs();
+  }
+}
+
+async function writeSpecialistLogs(entries) {
+  const normalized = Array.isArray(entries)
+    ? entries.map(normalizeSpecialistLogEntry).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    : defaultSpecialistLogs();
+
+  await uploadObject(
+    SPECIALIST_LOGS_OBJECT,
+    "application/json; charset=utf-8",
+    Buffer.from(JSON.stringify(normalized, null, 2))
+  );
+
+  return normalized;
+}
+
+async function appendSpecialistLog(entry) {
+  const existing = await readSpecialistLogs();
+  const nextEntries = [normalizeSpecialistLogEntry(entry), ...existing].slice(0, 500);
+  return writeSpecialistLogs(nextEntries);
 }
 
 async function saveArchiveSnapshot(dateKey, csv) {
@@ -691,6 +740,7 @@ function sendPlanError(res, error) {
 
 module.exports = {
   appendAuditLog,
+  appendSpecialistLog,
   archiveSnapshotForDate,
   callOpenAIPlan,
   defaultAdminPasswords,
@@ -704,6 +754,8 @@ module.exports = {
   readAdminPasswords,
   readCustomAssignments,
   readSkillsMatrix,
+  readSpecialistLogs,
+  readSpecialistLogs,
   readAuditLog,
   readArchiveSettings,
   readJsonBody,
@@ -716,6 +768,9 @@ module.exports = {
   writeAdminPasswords,
   writeCustomAssignments,
   writeSkillsMatrix,
+  writeSpecialistLogs,
+  writeSpecialistLogs,
+  appendSpecialistLog,
   writeArchiveSettings,
   writeAuditLog,
   writeSchedulingRules,
