@@ -8458,32 +8458,6 @@ function renderOutOnlyCard(filteredTeam) {
     .join("");
 }
 
-function renderSummary(filteredTeam) {
-  const summaryGrid = document.getElementById("summary-grid");
-  const counts = {};
-
-  filteredTeam.forEach((person) => {
-    person.assignments.forEach(([assignment, phones]) => {
-      if (!assignment || assignment === "OOO/Sick/PTO") return;
-      counts[assignment] ??= { total: 0, phones: 0 };
-      counts[assignment].total += 1;
-      if (phones) counts[assignment].phones += 1;
-    });
-  });
-
-  summaryGrid.innerHTML = Object.entries(counts)
-    .sort((a, b) => b[1].total - a[1].total)
-    .map(
-      ([name, value]) => `
-        <article class="summary-card">
-          <h3>${name}</h3>
-          <div class="summary-value">${value.total}</div>
-        </article>
-      `
-    )
-    .join("");
-}
-
 function renderWorkspaceTabs() {
   const showingBoard = activeWorkspaceTab === "board";
   const showingShift = activeWorkspaceTab === "shift";
@@ -9745,7 +9719,6 @@ function render() {
   renderPendingPlan();
   renderStats(filteredTeam);
   renderOutOnlyCard(filteredTeam);
-  renderSummary(filteredTeam);
   renderWorkspaceTabs();
   renderChart(filteredTeam);
   renderBoard(filteredTeam);
