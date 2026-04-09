@@ -2503,6 +2503,7 @@ let editableSkillAssignments = [...baseEditableSkillAssignments];
 let assignmentAliases = [...baseAssignmentAliases];
 let assignmentOptions = [];
 let customAssignmentsState = null;
+let assignmentRenameState = null;
 let skillsMatrixState = null;
 
 const automationDefinitions = [
@@ -3289,10 +3290,24 @@ function getAssignmentManagerKey() {
   return "daily-ops-custom-assignments";
 }
 
+function getAssignmentRenameKey() {
+  return "daily-ops-assignment-renames";
+}
+
 function normalizeCustomAssignments(assignments) {
   return Array.isArray(assignments)
     ? [...new Set(assignments.map((entry) => String(entry || "").trim()).filter(Boolean))]
     : [];
+}
+
+function normalizeAssignmentRenames(renameMap) {
+  if (!renameMap || typeof renameMap !== "object" || Array.isArray(renameMap)) return {};
+  const allowed = new Set(baseEditableSkillAssignments);
+  return Object.fromEntries(
+    Object.entries(renameMap)
+      .map(([key, value]) => [String(key || "").trim(), String(value || "").trim()])
+      .filter(([key, value]) => allowed.has(key) && value)
+  );
 }
 
 function loadCustomAssignments() {
@@ -3310,10 +3325,44 @@ function loadCustomAssignments() {
   }
 }
 
+function loadAssignmentRenames() {
+  if (assignmentRenameState && typeof assignmentRenameState === "object") {
+    return { ...assignmentRenameState };
+  }
+  try {
+    const raw = window.localStorage.getItem(getAssignmentRenameKey());
+    const parsed = raw ? JSON.parse(raw) : {};
+    assignmentRenameState = normalizeAssignmentRenames(parsed);
+    return { ...assignmentRenameState };
+  } catch {
+    assignmentRenameState = {};
+    return {};
+  }
+}
+
 function saveCustomAssignments(assignments) {
   customAssignmentsState = normalizeCustomAssignments(assignments);
   window.localStorage.setItem(getAssignmentManagerKey(), JSON.stringify(customAssignmentsState));
   return [...customAssignmentsState];
+}
+
+function saveAssignmentRenames(renameMap) {
+  assignmentRenameState = normalizeAssignmentRenames(renameMap);
+  window.localStorage.setItem(getAssignmentRenameKey(), JSON.stringify(assignmentRenameState));
+  return { ...assignmentRenameState };
+}
+
+function resolveBuiltInAssignmentName(assignment) {
+  const overrides = loadAssignmentRenames();
+  return overrides[assignment] || assignment;
+}
+
+function getBuiltInAssignmentMeta(assignmentName) {
+  return (
+    baseEditableSkillAssignments
+      .map((canonical) => ({ canonical, display: resolveBuiltInAssignmentName(canonical) }))
+      .find(({ display }) => display === assignmentName) || null
+  );
 }
 
 async function syncCustomAssignmentsFromServer() {
@@ -3358,17 +3407,83 @@ function addCustomAssignment(assignmentName) {
   return true;
 }
 
+function syncRenamedAssignmentEverywhere(previousAssignment, nextAssignment) {
+  if (!previousAssignment || !nextAssignment || previousAssignment === nextAssignment) return;
+
+  team.forEach((person) => {
+    person.assignments = person.assignments.map(([currentAssignment, isPhone]) =>
+      currentAssignment === previousAssignment ? [nextAssignment, isPhone] : [currentAssignment, isPhone]
+    );
+    person.skills = (person.skills || []).map((skill) => (skill === previousAssignment ? nextAssignment : skill));
+  });
+
+  const nextSkillsMatrix = buildSkillsMatrixPayload();
+  saveSkillsMatrix(nextSkillsMatrix);
+  void persistSkillsMatrix(nextSkillsMatrix);
+
+  if (assignmentColors[previousAssignment] && !assignmentColors[nextAssignment]) {
+    assignmentColors[nextAssignment] = assignmentColors[previousAssignment];
+  }
+}
+
+function renameEditableAssignment(previousAssignment, nextAssignmentRaw) {
+  const nextAssignment = String(nextAssignmentRaw || "").trim();
+  if (!previousAssignment || !nextAssignment) return false;
+  if (previousAssignment === nextAssignment) return true;
+  if (editableSkillAssignments.includes(nextAssignment)) return false;
+
+  const builtInMeta = getBuiltInAssignmentMeta(previousAssignment);
+  if (builtInMeta) {
+    const nextRenames = loadAssignmentRenames();
+    nextRenames[builtInMeta.canonical] = nextAssignment;
+    saveAssignmentRenames(nextRenames);
+  } else {
+    const nextCustom = loadCustomAssignments().map((assignment) => (assignment === previousAssignment ? nextAssignment : assignment));
+    const savedCustomAssignments = saveCustomAssignments(nextCustom);
+    void persistCustomAssignments(savedCustomAssignments);
+  }
+
+  syncRenamedAssignmentEverywhere(previousAssignment, nextAssignment);
+  refreshAssignmentCollections();
+  refreshAssignmentControls();
+  return true;
+}
+
+function resetBuiltInAssignmentName(assignmentName) {
+  const builtInMeta = getBuiltInAssignmentMeta(assignmentName);
+  if (!builtInMeta || builtInMeta.display === builtInMeta.canonical) return false;
+  const nextRenames = loadAssignmentRenames();
+  delete nextRenames[builtInMeta.canonical];
+  saveAssignmentRenames(nextRenames);
+  syncRenamedAssignmentEverywhere(assignmentName, builtInMeta.canonical);
+  refreshAssignmentCollections();
+  refreshAssignmentControls();
+  return true;
+}
+
 function ensureAssignmentColor(assignment) {
-  if (!assignment || assignmentColors[assignment]) return;
+  if (!assignment) return;
+  const builtInMeta = getBuiltInAssignmentMeta(assignment);
+  if (builtInMeta && assignmentColors[builtInMeta.canonical] && !assignmentColors[assignment]) {
+    assignmentColors[assignment] = assignmentColors[builtInMeta.canonical];
+  }
+  if (assignmentColors[assignment]) return;
   const colorIndex = Object.keys(assignmentColors).length % assignmentPalette.length;
   assignmentColors[assignment] = assignmentPalette[colorIndex];
 }
 
 function refreshAssignmentCollections() {
   const customAssignments = loadCustomAssignments();
-  editableSkillAssignments = [...new Set([...baseEditableSkillAssignments, ...customAssignments])];
+  const builtInAssignments = baseEditableSkillAssignments.map(resolveBuiltInAssignmentName);
+  editableSkillAssignments = [...new Set([...builtInAssignments, ...customAssignments])];
   assignmentAliases = [
-    ...baseAssignmentAliases,
+    ...baseAssignmentAliases.map((alias) => {
+      const canonical = getBuiltInAssignmentMeta(alias.canonical)?.display || resolveBuiltInAssignmentName(alias.canonical);
+      return {
+        canonical,
+        phrases: [...new Set([...alias.phrases, normalizeText(canonical)])],
+      };
+    }),
     ...customAssignments.map((assignment) => ({
       canonical: assignment,
       phrases: [normalizeText(assignment)],
@@ -3451,18 +3566,25 @@ function renderAssignmentManager() {
       </div>
       <div class="assignment-manager-list">
         ${editableSkillAssignments
-          .map(
-            (assignment) => `
-              <div class="assignment-manager-row">
-                <span class="assignment-manager-name">${assignment}</span>
-                ${
-                  customAssignments.includes(assignment)
-                    ? `<button type="button" class="secondary-button assignment-remove-button" data-remove-assignment="${assignment}">Delete</button>`
-                    : `<span class="assignment-manager-fixed">Built-in</span>`
-                }
+          .map((assignment) => {
+            const builtInMeta = getBuiltInAssignmentMeta(assignment);
+            const isCustomAssignment = customAssignments.includes(assignment);
+            return `
+              <div class="assignment-manager-row" data-assignment-row="${assignment}">
+                <input type="text" class="portal-input assignment-manager-input" value="${assignment}" data-assignment-input="${assignment}" />
+                <div class="assignment-manager-actions">
+                  <button type="button" class="secondary-button assignment-save-button" data-save-assignment="${assignment}">Save</button>
+                  ${
+                    isCustomAssignment
+                      ? `<button type="button" class="secondary-button assignment-remove-button" data-remove-assignment="${assignment}">Delete</button>`
+                      : builtInMeta && builtInMeta.display !== builtInMeta.canonical
+                        ? `<button type="button" class="secondary-button assignment-reset-button" data-reset-assignment="${assignment}">Reset</button>`
+                        : `<span class="assignment-manager-fixed">Built-in</span>`
+                  }
+                </div>
               </div>
-            `
-          )
+            `;
+          })
           .join("")}
       </div>
     </div>
@@ -3481,6 +3603,38 @@ function renderAssignmentManager() {
       details: ["Assignment manager"],
     });
     render();
+  });
+
+  assignmentManagerCard.querySelectorAll("[data-save-assignment]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const assignment = button.dataset.saveAssignment || "";
+      const input = assignmentManagerCard.querySelector(`[data-assignment-input="${CSS.escape(assignment)}"]`);
+      const nextAssignmentName = String(input?.value || "").trim();
+      if (!renameEditableAssignment(assignment, nextAssignmentName)) {
+        if (input) input.value = assignment;
+        return;
+      }
+      void appendAuditLogEntry({
+        actionType: "assignment-renamed",
+        summary: `Renamed assignment: ${assignment} -> ${nextAssignmentName}`,
+        details: ["Assignment manager"],
+      });
+      render();
+    });
+  });
+
+  assignmentManagerCard.querySelectorAll("[data-reset-assignment]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const assignment = button.dataset.resetAssignment || "";
+      const builtInMeta = getBuiltInAssignmentMeta(assignment);
+      if (!resetBuiltInAssignmentName(assignment) || !builtInMeta) return;
+      void appendAuditLogEntry({
+        actionType: "assignment-renamed",
+        summary: `Reset assignment name: ${assignment} -> ${builtInMeta.canonical}`,
+        details: ["Assignment manager"],
+      });
+      render();
+    });
   });
 
   assignmentManagerCard.querySelectorAll("[data-remove-assignment]").forEach((button) => {
