@@ -2270,25 +2270,31 @@ body.assignment-graph-open::after {
 }
 
 #assignment-graph-panel.is-expanded .assignment-spreadsheet {
-  font-size: 0.82rem;
+  font-size: 0.74rem;
 }
 
 #assignment-graph-panel.is-expanded .assignment-spreadsheet th,
 #assignment-graph-panel.is-expanded .assignment-spreadsheet td {
-  padding: 7px 9px;
+  padding: 5px 7px;
 }
 
 #assignment-graph-panel.is-expanded .spreadsheet-assignment-pill {
-  min-height: 38px;
+  min-height: 32px;
 }
 
 #assignment-graph-panel.is-expanded .spreadsheet-assignment-select,
 #assignment-graph-panel.is-expanded .spreadsheet-shift-button {
-  font-size: 0.82rem;
+  font-size: 0.74rem;
 }
 
 #assignment-graph-panel.is-expanded .spreadsheet-name {
-  font-size: 0.9rem;
+  font-size: 0.82rem;
+}
+
+#assignment-graph-panel.is-expanded .spreadsheet-title-cell,
+#assignment-graph-panel.is-expanded .spreadsheet-manager-cell,
+#assignment-graph-panel.is-expanded .spreadsheet-schedule-cell {
+  font-size: 0.78rem;
 }
 
 .chart-row {
