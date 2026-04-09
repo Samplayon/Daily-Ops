@@ -6159,7 +6159,7 @@ async function refreshArchiveLibrary() {
 async function saveArchiveConfig(partial = {}) {
   if (!backendAvailable) return;
   const nightlyAutomation = loadAutomationPreferences().find((entry) => entry.id === "nightly-pdf-archive");
-  const response = await fetch("/api/archives/config", {
+  const response = await fetch("/api/archives/status", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
