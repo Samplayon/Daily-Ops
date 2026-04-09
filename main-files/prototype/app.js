@@ -2437,11 +2437,13 @@ const boardTabButton = document.getElementById("board-tab");
 const shiftTabButton = document.getElementById("shift-tab");
 const skillsTabButton = document.getElementById("skills-tab");
 const automationsTabButton = document.getElementById("automations-tab");
+const archiveTabButton = document.getElementById("archive-tab");
 const adminTabButton = document.getElementById("admin-tab");
 const boardView = document.getElementById("board-view");
 const shiftView = document.getElementById("shift-view");
 const skillsView = document.getElementById("skills-view");
 const automationsView = document.getElementById("automations-view");
+const archiveView = document.getElementById("archive-view");
 const adminView = document.getElementById("admin-view");
 const shiftSearchInput = document.getElementById("shift-search-input");
 const shiftEditorList = document.getElementById("shift-editor-list");
@@ -3135,6 +3137,14 @@ function getAdminVisibleTeam(collection = team) {
 
 function canCurrentAdminViewAuditLog() {
   return currentView === "admin" && Boolean(getCurrentAdminProfile().canViewAuditLog);
+}
+
+function canCurrentAdminViewAutomations() {
+  return currentView === "admin" && Boolean(getCurrentAdminProfile().canViewAuditLog);
+}
+
+function canCurrentAdminViewArchiveLibrary() {
+  return currentView === "admin";
 }
 
 function populateAdminIdentitySelect() {
@@ -4286,16 +4296,67 @@ function buildCompactAssistantRequestFromForm() {
 async function submitCompactAssistantRequest() {
   const text = buildCompactAssistantRequestFromForm();
   if (!text) return;
+
   if (assistantInlineFeedback) {
     assistantInlineFeedback.classList.add("hidden");
     assistantInlineFeedback.textContent = "";
   }
-  commandInput.value = text;
-  await submitChatRequest();
-  if (assistantInlineFeedback) {
-    const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
-    assistantInlineFeedback.textContent = latestAssistantMessage?.text || "Request reviewed.";
-    assistantInlineFeedback.classList.remove("hidden");
+
+  try {
+    assistantMode = "local";
+    const plan = buildPlanFromCommand(text);
+
+    if (plan?.error) {
+      pendingPlan = null;
+      if (assistantInlineFeedback) {
+        assistantInlineFeedback.textContent = plan.error;
+        assistantInlineFeedback.classList.remove("hidden");
+      }
+      return;
+    }
+
+    if (plan?.question) {
+      pendingQuestion = plan;
+      if (assistantInlineFeedback) {
+        assistantInlineFeedback.textContent = plan.question;
+        assistantInlineFeedback.classList.remove("hidden");
+      }
+      return;
+    }
+
+    if (!plan?.actions?.length) {
+      if (assistantInlineFeedback) {
+        assistantInlineFeedback.textContent = "I couldn't turn that into a schedule change yet.";
+        assistantInlineFeedback.classList.remove("hidden");
+      }
+      return;
+    }
+
+    const appliedPlan = cloneData(plan);
+    plan.actions.forEach(applyAction);
+    lastReviewedPlan = cloneData(plan);
+    pendingPlan = null;
+    pendingQuestion = null;
+    void appendAuditLogEntry({
+      actionType: "compact-plan-applied",
+      summary: `Applied compact change: ${appliedPlan.title}`,
+      details: [
+        `${appliedPlan.actions.length} change${appliedPlan.actions.length === 1 ? "" : "s"}`,
+        ...(appliedPlan.details || []),
+      ],
+    });
+    render();
+
+    if (assistantInlineFeedback) {
+      const appliedSummary = plan.summary || `Applied ${plan.title}.`;
+      assistantInlineFeedback.textContent = `${appliedSummary} Applied immediately.`;
+      assistantInlineFeedback.classList.remove("hidden");
+    }
+  } catch (error) {
+    if (assistantInlineFeedback) {
+      assistantInlineFeedback.textContent = error?.message || "I couldn't apply that change yet.";
+      assistantInlineFeedback.classList.remove("hidden");
+    }
   }
 }
 
@@ -6509,9 +6570,9 @@ function buildMovePlan(text) {
       .join(", ")}.`,
     scope: blockIndexes.length > 1 ? "Multi-block update" : "Single block update",
     actions,
-    assistantText: `I prepared a move for ${people.map((person) => person.name).join(", ")} into ${assignment} across ${blockIndexes
+    assistantText: `I mapped ${people.map((person) => person.name).join(", ")} into ${assignment} across ${blockIndexes
       .map(formatBlockLabel)
-      .join(", ")}. Review it first, then apply it when you're ready.`,
+      .join(", ")}.`,
   };
 }
 
@@ -6756,11 +6817,11 @@ function summarizePlanForChat(plan) {
   const parts = [plan.assistantText || plan.summary].filter(Boolean);
 
   if (plan.actions?.length) {
-    parts.push(`${plan.actions.length} change${plan.actions.length === 1 ? "" : "s"} ready to review.`);
+    parts.push(`${plan.actions.length} change${plan.actions.length === 1 ? "" : "s"} prepared.`);
   }
 
   if (plan.details?.length) {
-    parts.push("The step-by-step details are in the review panel.");
+    parts.push("The step-by-step details are in the plan panel.");
   }
 
   return parts.join(" ");
@@ -8459,22 +8520,37 @@ function renderOutOnlyCard(filteredTeam) {
 }
 
 function renderWorkspaceTabs() {
+  const canViewAutomations = canCurrentAdminViewAutomations();
+  const canViewArchive = canCurrentAdminViewArchiveLibrary();
+  if (!canViewAutomations && activeWorkspaceTab === "automations") {
+    activeWorkspaceTab = canViewArchive ? "archive" : "board";
+  }
+  if (!canViewArchive && activeWorkspaceTab === "archive") {
+    activeWorkspaceTab = "board";
+  }
+
   const showingBoard = activeWorkspaceTab === "board";
   const showingShift = activeWorkspaceTab === "shift";
   const showingSkills = activeWorkspaceTab === "skills";
-  const showingAutomations = activeWorkspaceTab === "automations";
+  const showingAutomations = canViewAutomations && activeWorkspaceTab === "automations";
+  const showingArchive = canViewArchive && activeWorkspaceTab === "archive";
   const showingAdmin = activeWorkspaceTab === "admin";
 
   boardView.classList.toggle("hidden", !showingBoard);
   shiftView.classList.toggle("hidden", !showingShift);
   skillsView.classList.toggle("hidden", !showingSkills);
   automationsView.classList.toggle("hidden", !showingAutomations);
+  archiveView.classList.toggle("hidden", !showingArchive);
   adminView.classList.toggle("hidden", !showingAdmin);
+
+  automationsTabButton.classList.toggle("hidden", !canViewAutomations);
+  archiveTabButton.classList.toggle("hidden", !canViewArchive);
 
   boardTabButton.classList.toggle("active", showingBoard);
   shiftTabButton.classList.toggle("active", showingShift);
   skillsTabButton.classList.toggle("active", showingSkills);
   automationsTabButton.classList.toggle("active", showingAutomations);
+  archiveTabButton.classList.toggle("active", showingArchive);
   adminTabButton.classList.toggle("active", showingAdmin);
 }
 
@@ -9154,6 +9230,7 @@ function renderAgentCoverageChart(person) {
 
 function renderBoard(filteredTeam) {
   const board = document.getElementById("ops-board");
+  if (!board || !boardJumpRoot) return;
   const groups = getGroupedBlocks();
   const selectedAssignment = assignmentFilter.value;
 
@@ -9721,7 +9798,6 @@ function render() {
   renderOutOnlyCard(filteredTeam);
   renderWorkspaceTabs();
   renderChart(filteredTeam);
-  renderBoard(filteredTeam);
   renderShiftEditor();
   renderSkillsMatrix(getSkillsMatrixTeam());
   renderAssignmentManager();
@@ -9759,9 +9835,14 @@ skillsTabButton.addEventListener("click", () => {
   activeWorkspaceTab = "skills";
   render();
 });
-automationsTabButton.addEventListener("click", () => {
+automationsTabButton?.addEventListener("click", () => {
   collapseAssignmentGraph();
   activeWorkspaceTab = "automations";
+  render();
+});
+archiveTabButton?.addEventListener("click", () => {
+  collapseAssignmentGraph();
+  activeWorkspaceTab = "archive";
   render();
 });
 adminTabButton.addEventListener("click", () => {
