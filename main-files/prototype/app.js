@@ -2593,19 +2593,12 @@ let auditLogEntries = [];
 let auditLogLoaded = false;
 let auditLogLoading = false;
 let auditLogError = "";
-const specialistLogsFallbackStorageKey = "daily-ops-specialist-logs-v1";
 let specialistLogEntries = [];
 let specialistLogsLoaded = false;
 let specialistLogsLoading = false;
 let specialistLogsError = "";
 let specialistLogsSearchTerm = "";
 let agentLogStatusState = { message: "Managers will be able to see saved notes in the admin log view.", tone: "" };
-let specialistLogEntries = [];
-let specialistLogsLoaded = false;
-let specialistLogsLoading = false;
-let specialistLogsError = "";
-let specialistLogsSearchTerm = "";
-let agentLogStatusState = { message: "Nothing saved yet.", tone: "" };
 let adminPasswordsState = null;
 let adminPasswordSaveState = {
   message: "",
@@ -4143,7 +4136,7 @@ async function appendSpecialistLogEntry(entry) {
     const response = await fetch("/api/specialist-logs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ entry: normalized }),
+      body: JSON.stringify(normalized),
     });
     const payload = parseJsonSafely(await response.text(), {});
     if (!response.ok) {
