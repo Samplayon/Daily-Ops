@@ -2226,34 +2226,47 @@ body.assignment-graph-open::after {
 
 #assignment-graph-panel.is-expanded {
   position: fixed;
-  inset: 22px;
+  inset: 10px;
   z-index: 1200;
   margin: 0;
   width: auto;
   max-width: none;
-  max-height: calc(100vh - 44px);
+  max-height: calc(100vh - 20px);
   display: flex;
   flex-direction: column;
+  gap: 8px;
   overflow: hidden;
+  padding: 10px;
   border: 2px solid rgba(15, 23, 42, 0.16);
+  border-radius: 20px;
+  background: #eef3f6;
   box-shadow: 0 28px 64px rgba(15, 23, 42, 0.32);
 }
 
+#assignment-graph-panel.is-expanded .panel-header,
 #assignment-graph-panel.is-expanded .assistant-compact-card,
 #assignment-graph-panel.is-expanded .panel-filters {
+  display: none;
+}
+
+#assignment-graph-panel.is-expanded .assignment-graph-actions {
+  margin: 0;
   flex: 0 0 auto;
+  justify-content: flex-end;
 }
 
 #assignment-graph-panel.is-expanded .assignment-chart {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding-right: 8px;
-  padding-bottom: 12px;
+  padding: 0;
 }
 
 #assignment-graph-panel.is-expanded .assignment-spreadsheet-wrap {
   max-height: none;
+  height: 100%;
+  border-radius: 14px;
+  box-shadow: none;
 }
 
 .chart-row {
