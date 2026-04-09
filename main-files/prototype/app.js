@@ -2425,7 +2425,6 @@ const agentAlertSoundEnabled = document.getElementById("agent-alert-sound-enable
 const agentEnableNotificationsButton = document.getElementById("agent-enable-notifications");
 const agentTestAlertButton = document.getElementById("agent-test-alert");
 const agentAlertStatus = document.getElementById("agent-alert-status");
-const agentLogType = document.getElementById("agent-log-type");
 const agentLogTime = document.getElementById("agent-log-time");
 const agentLogNotes = document.getElementById("agent-log-notes");
 const agentLogSubmit = document.getElementById("agent-log-submit");
@@ -2466,6 +2465,8 @@ const auditLogPanel = document.getElementById("audit-log-panel");
 const auditLogList = document.getElementById("audit-log-list");
 const specialistLogsPanel = document.getElementById("specialist-logs-panel");
 const specialistLogsSearchInput = document.getElementById("specialist-logs-search");
+const specialistLogsDateInput = document.getElementById("specialist-logs-date");
+const specialistLogsExportButton = document.getElementById("specialist-logs-export");
 const specialistLogsList = document.getElementById("specialist-logs-list");
 const archivesList = document.getElementById("archives-list");
 const archivePreview = document.getElementById("archive-preview");
@@ -2513,6 +2514,7 @@ let editableSkillAssignments = [...baseEditableSkillAssignments];
 let assignmentAliases = [...baseAssignmentAliases];
 let assignmentOptions = [];
 let customAssignmentsState = null;
+let hiddenBuiltInAssignmentsState = null;
 let assignmentRenameState = null;
 let skillsMatrixState = null;
 
@@ -2598,6 +2600,7 @@ let specialistLogsLoaded = false;
 let specialistLogsLoading = false;
 let specialistLogsError = "";
 let specialistLogsSearchTerm = "";
+let specialistLogsDate = "";
 let agentLogStatusState = { message: "Managers will be able to see saved notes in the admin log view.", tone: "" };
 let adminPasswordsState = null;
 let adminPasswordSaveState = {
@@ -3313,11 +3316,21 @@ function getAssignmentManagerKey() {
   return "daily-ops-custom-assignments";
 }
 
+function getHiddenBuiltInAssignmentsKey() {
+  return "daily-ops-hidden-built-ins";
+}
+
 function getAssignmentRenameKey() {
   return "daily-ops-assignment-renames";
 }
 
 function normalizeCustomAssignments(assignments) {
+  return Array.isArray(assignments)
+    ? [...new Set(assignments.map((entry) => String(entry || "").trim()).filter(Boolean))]
+    : [];
+}
+
+function normalizeHiddenBuiltInAssignments(assignments) {
   return Array.isArray(assignments)
     ? [...new Set(assignments.map((entry) => String(entry || "").trim()).filter(Boolean))]
     : [];
@@ -3348,6 +3361,21 @@ function loadCustomAssignments() {
   }
 }
 
+function loadHiddenBuiltInAssignments() {
+  if (Array.isArray(hiddenBuiltInAssignmentsState)) {
+    return [...hiddenBuiltInAssignmentsState];
+  }
+  try {
+    const raw = window.localStorage.getItem(getHiddenBuiltInAssignmentsKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    hiddenBuiltInAssignmentsState = normalizeHiddenBuiltInAssignments(parsed);
+    return [...hiddenBuiltInAssignmentsState];
+  } catch {
+    hiddenBuiltInAssignmentsState = [];
+    return [];
+  }
+}
+
 function loadAssignmentRenames() {
   if (assignmentRenameState && typeof assignmentRenameState === "object") {
     return { ...assignmentRenameState };
@@ -3367,6 +3395,12 @@ function saveCustomAssignments(assignments) {
   customAssignmentsState = normalizeCustomAssignments(assignments);
   window.localStorage.setItem(getAssignmentManagerKey(), JSON.stringify(customAssignmentsState));
   return [...customAssignmentsState];
+}
+
+function saveHiddenBuiltInAssignments(assignments) {
+  hiddenBuiltInAssignmentsState = normalizeHiddenBuiltInAssignments(assignments);
+  window.localStorage.setItem(getHiddenBuiltInAssignmentsKey(), JSON.stringify(hiddenBuiltInAssignmentsState));
+  return [...hiddenBuiltInAssignmentsState];
 }
 
 function saveAssignmentRenames(renameMap) {
@@ -3394,6 +3428,7 @@ async function syncCustomAssignmentsFromServer() {
     if (!response.ok) throw new Error(`Failed to load assignments (${response.status})`);
     const payload = await response.json();
     saveCustomAssignments(payload?.assignments || []);
+    saveHiddenBuiltInAssignments(payload?.hiddenBuiltIns || []);
     refreshAssignmentCollections();
     refreshAssignmentControls();
     renderAssignmentManager();
@@ -3409,11 +3444,32 @@ async function persistCustomAssignments(assignments) {
     const response = await fetch("/api/assignments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ assignments }),
+      body: JSON.stringify({
+        assignments,
+        hiddenBuiltIns: loadHiddenBuiltInAssignments(),
+      }),
     });
     if (!response.ok) throw new Error(`Failed to save assignments (${response.status})`);
     const payload = await response.json();
     saveCustomAssignments(payload?.assignments || assignments);
+    saveHiddenBuiltInAssignments(payload?.hiddenBuiltIns || loadHiddenBuiltInAssignments());
+  } catch {}
+}
+
+async function persistAssignmentConfig() {
+  try {
+    const response = await fetch("/api/assignments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        assignments: loadCustomAssignments(),
+        hiddenBuiltIns: loadHiddenBuiltInAssignments(),
+      }),
+    });
+    if (!response.ok) throw new Error(`Failed to save assignments (${response.status})`);
+    const payload = await response.json();
+    saveCustomAssignments(payload?.assignments || loadCustomAssignments());
+    saveHiddenBuiltInAssignments(payload?.hiddenBuiltIns || loadHiddenBuiltInAssignments());
   } catch {}
 }
 
@@ -3495,9 +3551,33 @@ function ensureAssignmentColor(assignment) {
   assignmentColors[assignment] = assignmentPalette[colorIndex];
 }
 
+function deleteEditableAssignment(assignment) {
+  const builtInMeta = getBuiltInAssignmentMeta(assignment);
+  if (builtInMeta) {
+    saveHiddenBuiltInAssignments([
+      ...loadHiddenBuiltInAssignments().filter((entry) => entry !== builtInMeta.canonical),
+      builtInMeta.canonical,
+    ]);
+    const nextRenames = loadAssignmentRenames();
+    delete nextRenames[builtInMeta.canonical];
+    saveAssignmentRenames(nextRenames);
+  } else {
+    saveCustomAssignments(loadCustomAssignments().filter((entry) => entry !== assignment));
+  }
+
+  removeAssignmentEverywhere(assignment);
+  delete assignmentColors[assignment];
+  refreshAssignmentCollections();
+  refreshAssignmentControls();
+  void persistAssignmentConfig();
+}
+
 function refreshAssignmentCollections() {
   const customAssignments = loadCustomAssignments();
-  const builtInAssignments = baseEditableSkillAssignments.map(resolveBuiltInAssignmentName);
+  const hiddenBuiltIns = new Set(loadHiddenBuiltInAssignments());
+  const builtInAssignments = baseEditableSkillAssignments
+    .filter((assignment) => !hiddenBuiltIns.has(assignment))
+    .map(resolveBuiltInAssignmentName);
   editableSkillAssignments = [...new Set([...builtInAssignments, ...customAssignments])];
   assignmentAliases = [
     ...baseAssignmentAliases.map((alias) => {
@@ -3594,16 +3674,14 @@ function renderAssignmentManager() {
             const isCustomAssignment = customAssignments.includes(assignment);
             return `
               <div class="assignment-manager-row" data-assignment-row="${assignment}">
-                <input type="text" class="portal-input assignment-manager-input" value="${assignment}" data-assignment-input="${assignment}" />
+                <input type="text" class="portal-input assignment-manager-input" value="${assignment}" data-assignment-input="${assignment}" data-original-value="${assignment}" />
                 <div class="assignment-manager-actions">
-                  <button type="button" class="secondary-button assignment-save-button" data-save-assignment="${assignment}">Save</button>
-                  ${
-                    isCustomAssignment
-                      ? `<button type="button" class="secondary-button assignment-remove-button" data-remove-assignment="${assignment}">Delete</button>`
-                      : builtInMeta && builtInMeta.display !== builtInMeta.canonical
-                        ? `<button type="button" class="secondary-button assignment-reset-button" data-reset-assignment="${assignment}">Reset</button>`
-                        : `<span class="assignment-manager-fixed">Built-in</span>`
-                  }
+                  <button type="button" class="secondary-button assignment-save-button hidden" data-save-assignment="${assignment}">Save</button>
+                  ${builtInMeta && builtInMeta.display !== builtInMeta.canonical
+                    ? `<button type="button" class="secondary-button assignment-reset-button" data-reset-assignment="${assignment}">Reset</button>`
+                    : ""}
+                  <button type="button" class="secondary-button assignment-remove-button" data-remove-assignment="${assignment}">Delete</button>
+                  ${!isCustomAssignment ? `<span class="assignment-manager-fixed">Built-in</span>` : ""}
                 </div>
               </div>
             `;
@@ -3626,6 +3704,19 @@ function renderAssignmentManager() {
       details: ["Assignment manager"],
     });
     render();
+  });
+
+  assignmentManagerCard.querySelectorAll("[data-assignment-input]").forEach((input) => {
+    const row = input.closest("[data-assignment-row]");
+    const saveButton = row?.querySelector("[data-save-assignment]");
+    const syncSaveButton = () => {
+      if (!saveButton) return;
+      const originalValue = String(input.dataset.originalValue || "").trim();
+      const currentValue = String(input.value || "").trim();
+      saveButton.classList.toggle("hidden", currentValue === originalValue);
+    };
+    input.addEventListener("input", syncSaveButton);
+    syncSaveButton();
   });
 
   assignmentManagerCard.querySelectorAll("[data-save-assignment]").forEach((button) => {
@@ -3663,13 +3754,7 @@ function renderAssignmentManager() {
   assignmentManagerCard.querySelectorAll("[data-remove-assignment]").forEach((button) => {
     button.addEventListener("click", () => {
       const assignment = button.dataset.removeAssignment || "";
-      const nextCustom = loadCustomAssignments().filter((entry) => entry !== assignment);
-      const savedCustomAssignments = saveCustomAssignments(nextCustom);
-      void persistCustomAssignments(savedCustomAssignments);
-      removeAssignmentEverywhere(assignment);
-      delete assignmentColors[assignment];
-      refreshAssignmentCollections();
-      refreshAssignmentControls();
+      deleteEditableAssignment(assignment);
       void appendAuditLogEntry({
         actionType: "assignment-removed",
         summary: `Removed assignment: ${assignment}`,
@@ -4196,12 +4281,17 @@ function renderAgentLogPanel() {
     .join("");
 }
 
-function renderSpecialistLogsPanel() {
-  if (!specialistLogsList) return;
-
+function getFilteredSpecialistLogs() {
   const searchTerm = normalizeText(specialistLogsSearchTerm);
-  const entries = specialistLogEntries
+  return specialistLogEntries
     .filter((entry) => {
+      if (specialistLogsDate) {
+        const entryDate = String(entry.createdAt || "").slice(0, 10);
+        if (entryDate !== specialistLogsDate) {
+          return false;
+        }
+      }
+
       if (!searchTerm) return true;
       return normalizeText([
         entry.specialistName,
@@ -4213,6 +4303,12 @@ function renderSpecialistLogsPanel() {
       ].join(" ")).includes(searchTerm);
     })
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
+function renderSpecialistLogsPanel() {
+  if (!specialistLogsList) return;
+
+  const entries = getFilteredSpecialistLogs();
 
   if (specialistLogsLoading && !specialistLogsLoaded) {
     specialistLogsList.innerHTML = `<div class="empty-state">Loading specialist logs...</div>`;
@@ -10245,12 +10341,55 @@ specialistLogsSearchInput?.addEventListener("input", (event) => {
   specialistLogsSearchTerm = event.target.value || "";
   renderSpecialistLogsPanel();
 });
+specialistLogsDateInput?.addEventListener("input", (event) => {
+  specialistLogsDate = event.target.value || "";
+  renderSpecialistLogsPanel();
+});
+specialistLogsExportButton?.addEventListener("click", () => {
+  const entries = getFilteredSpecialistLogs();
+  if (!entries.length) {
+    specialistLogsError = "No specialist logs match the current filters.";
+    renderSpecialistLogsPanel();
+    return;
+  }
+
+  const escapeCsv = (value) => {
+    const text = String(value ?? "");
+    if (!/[",\n]/.test(text)) return text;
+    return `"${text.replace(/"/g, '""')}"`;
+  };
+
+  const rows = [
+    ["Created At", "Specialist", "Title", "Manager", "Type", "Time", "Notes"],
+    ...entries.map((entry) => [
+      entry.createdAt || "",
+      entry.specialistName || "",
+      entry.title || "",
+      entry.manager || "",
+      entry.eventType || "",
+      entry.timeLabel || "",
+      entry.notes || "",
+    ]),
+  ];
+
+  const csv = rows.map((row) => row.map(escapeCsv).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const dateSuffix = specialistLogsDate || new Date().toISOString().slice(0, 10);
+  link.href = url;
+  link.download = `specialist-logs-${dateSuffix}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+});
 agentLogSubmit?.addEventListener("click", async () => {
   const person = getPersonById(selectedAgentId);
   if (!person) return;
   const notes = String(agentLogNotes?.value || "").trim();
   const timeLabel = String(agentLogTime?.value || "").trim();
-  const eventType = String(agentLogType?.value || "Long call").trim() || "Long call";
+  const eventType = "Work log";
   if (!notes) {
     agentLogStatusState = { message: "Add a few details first so your manager has something to review.", tone: "warning" };
     renderAgentLogPanel();
@@ -10269,7 +10408,6 @@ agentLogSubmit?.addEventListener("click", async () => {
     });
     if (agentLogNotes) agentLogNotes.value = "";
     if (agentLogTime) agentLogTime.value = "";
-    if (agentLogType) agentLogType.value = "Long call";
     agentLogStatusState = { message: "Saved. Your managers can review that note in Admin > Specialist Logs.", tone: "success" };
     renderAgentLogPanel();
   } catch (error) {
@@ -10280,7 +10418,6 @@ agentLogSubmit?.addEventListener("click", async () => {
 agentLogClear?.addEventListener("click", () => {
   if (agentLogNotes) agentLogNotes.value = "";
   if (agentLogTime) agentLogTime.value = "";
-  if (agentLogType) agentLogType.value = "Long call";
   agentLogStatusState = { message: "Cleared. Nothing saved yet.", tone: "" };
   renderAgentLogPanel();
 });

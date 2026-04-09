@@ -3,14 +3,24 @@ const { readCustomAssignments, sendArchiveError, sendJson, writeCustomAssignment
 module.exports = async function handler(req, res) {
   try {
     if (req.method === "GET") {
-      return sendJson(res, { ok: true, assignments: await readCustomAssignments() });
+      const payload = await readCustomAssignments();
+      return sendJson(res, {
+        ok: true,
+        assignments: payload.assignments || [],
+        hiddenBuiltIns: payload.hiddenBuiltIns || [],
+      });
     }
 
     if (req.method === "POST") {
       const data = await readJsonBody(req);
+      const payload = await writeCustomAssignments({
+        assignments: data?.assignments || [],
+        hiddenBuiltIns: data?.hiddenBuiltIns || [],
+      });
       return sendJson(res, {
         ok: true,
-        assignments: await writeCustomAssignments(data?.assignments || []),
+        assignments: payload.assignments || [],
+        hiddenBuiltIns: payload.hiddenBuiltIns || [],
       });
     }
 

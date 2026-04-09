@@ -412,6 +412,13 @@
                   <span>Search logs</span>
                   <input id="specialist-logs-search" type="text" class="portal-input" placeholder="Search by name, manager, type, or notes" />
                 </label>
+                <label class="specialist-logs-date-field">
+                  <span>Filter by date</span>
+                  <input id="specialist-logs-date" type="date" class="portal-input" />
+                </label>
+                <div class="specialist-logs-actions">
+                  <button id="specialist-logs-export" type="button" class="secondary-button">Export CSV</button>
+                </div>
               </div>
               <div id="specialist-logs-list" class="archives-list"></div>
             </section>
@@ -605,17 +612,6 @@
             </div>
           </div>
           <div class="agent-log-form-grid">
-            <label>
-              <span>What happened?</span>
-              <select id="agent-log-type" class="portal-input">
-                <option value="Long call">Long call</option>
-                <option value="Escalation">Escalation</option>
-                <option value="Follow-up needed">Follow-up needed</option>
-                <option value="System issue">System issue</option>
-                <option value="Customer issue">Customer issue</option>
-                <option value="Other">Other</option>
-              </select>
-            </label>
             <label>
               <span>When?</span>
               <input id="agent-log-time" type="text" class="portal-input" placeholder="Example: 2p-3p or around 4:15p" />

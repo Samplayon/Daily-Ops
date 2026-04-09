@@ -1054,6 +1054,7 @@ textarea:focus {
 .assistant-builder-actions {
   display: flex;
   justify-content: flex-start;
+  margin-top: 0.85rem;
 }
 
 .prompt-chip {
@@ -1074,6 +1075,15 @@ textarea:focus {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  margin-top: 0.85rem;
+}
+
+.assistant-compact-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-top: 1rem;
 }
 
 button {
@@ -3895,10 +3905,23 @@ body.dark-mode .assistant-person-empty {
 }
 
 .specialist-logs-search-field,
+.specialist-logs-date-field,
 .agent-log-notes-field {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.specialist-logs-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(220px, 0.9fr) auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+.specialist-logs-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .specialist-log-row {

@@ -332,6 +332,10 @@ function defaultCustomAssignments() {
   return [];
 }
 
+function defaultHiddenBuiltInAssignments() {
+  return [];
+}
+
 function defaultSkillsMatrix() {
   return {};
 }
@@ -344,6 +348,12 @@ function normalizeCustomAssignments(payload) {
   return Array.isArray(payload)
     ? [...new Set(payload.map((entry) => String(entry || "").trim()).filter(Boolean))]
     : defaultCustomAssignments();
+}
+
+function normalizeHiddenBuiltInAssignments(payload) {
+  return Array.isArray(payload)
+    ? [...new Set(payload.map((entry) => String(entry || "").trim()).filter(Boolean))]
+    : defaultHiddenBuiltInAssignments();
 }
 
 function normalizeAdminPasswords(payload) {
@@ -491,14 +501,32 @@ async function writeAdminPasswords(passwords) {
 async function readCustomAssignments() {
   try {
     const { body } = await downloadObject(CUSTOM_ASSIGNMENTS_OBJECT);
-    return normalizeCustomAssignments(JSON.parse(body.toString("utf8") || "[]"));
+    const parsed = JSON.parse(body.toString("utf8") || "[]");
+    if (Array.isArray(parsed)) {
+      return {
+        assignments: normalizeCustomAssignments(parsed),
+        hiddenBuiltIns: defaultHiddenBuiltInAssignments(),
+      };
+    }
+    return {
+      assignments: normalizeCustomAssignments(parsed?.assignments || []),
+      hiddenBuiltIns: normalizeHiddenBuiltInAssignments(parsed?.hiddenBuiltIns || []),
+    };
   } catch {
-    return defaultCustomAssignments();
+    return {
+      assignments: defaultCustomAssignments(),
+      hiddenBuiltIns: defaultHiddenBuiltInAssignments(),
+    };
   }
 }
 
-async function writeCustomAssignments(assignments) {
-  const normalized = normalizeCustomAssignments(assignments);
+async function writeCustomAssignments(payload) {
+  const normalized = {
+    assignments: normalizeCustomAssignments(
+      Array.isArray(payload) ? payload : payload?.assignments || []
+    ),
+    hiddenBuiltIns: normalizeHiddenBuiltInAssignments(payload?.hiddenBuiltIns || []),
+  };
   await uploadObject(
     CUSTOM_ASSIGNMENTS_OBJECT,
     "application/json; charset=utf-8",
