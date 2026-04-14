@@ -4082,3 +4082,64 @@ body.dark-mode .specialist-log-empty {
     grid-template-columns: 1fr;
   }
 }
+
+
+.roster-manager-card-shell {
+  display: grid;
+  gap: 1rem;
+}
+
+.roster-manager-toolbar,
+.roster-manager-add {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.roster-manager-toolbar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+}
+
+.roster-manager-search-field,
+.roster-manager-add label {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.roster-manager-add {
+  grid-template-columns: minmax(0, 1.2fr) minmax(180px, 0.8fr) minmax(180px, 0.8fr) auto;
+  align-items: end;
+}
+
+.roster-manager-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.roster-manager-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+  border: 2px solid var(--line-color, #d7dee8);
+  border-radius: 22px;
+  padding: 1rem 1.1rem;
+  background: var(--panel-bg, rgba(255, 255, 255, 0.9));
+}
+
+.roster-manager-copy {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.roster-manager-copy span {
+  color: var(--muted-text, #5d6b82);
+}
+
+@media (max-width: 1100px) {
+  .roster-manager-toolbar,
+  .roster-manager-add,
+  .roster-manager-row {
+    grid-template-columns: 1fr;
+  }
+}

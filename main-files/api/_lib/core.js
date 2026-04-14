@@ -7,6 +7,7 @@ const AUDIT_LOG_OBJECT = "__config__-audit-log.json";
 const ADMIN_PASSWORDS_OBJECT = "__config__-admin-passwords.json";
 const CUSTOM_ASSIGNMENTS_OBJECT = "__config__-custom-assignments.json";
 const SKILLS_MATRIX_OBJECT = "__config__-skills-matrix.json";
+const ROSTER_OBJECT = "__config__-roster.json";
 const SPECIALIST_LOGS_OBJECT = "__config__-specialist-logs.json";
 
 const PLAN_SCHEMA = {
@@ -176,7 +177,7 @@ function computeNextArchiveRun(now, settings) {
 }
 
 function scheduledArchiveDueAt(dateKey, timeString) {
-  return buildDateForTimezone(addDaysToDateKey(dateKey, 1), timeString || "00:00", "America/New_York");
+  return buildDateForTimezone(dateKey, timeString || "00:00", "America/New_York");
 }
 
 function formatArchiveTimestamp(value) {
@@ -554,6 +555,55 @@ async function writeSkillsMatrix(skillsMatrix) {
   return normalized;
 }
 
+function defaultRoster() {
+  return [];
+}
+
+function normalizeRosterEntry(entry) {
+  return {
+    name: String(entry?.name || "").trim(),
+    title: String(entry?.title || "Support Specialist").trim() || "Support Specialist",
+    manager: String(entry?.manager || "Sam").trim() || "Sam",
+    schedule: String(entry?.schedule || "8am - 5pm").trim() || "8am - 5pm",
+    teamGroup: entry?.teamGroup === "aco" ? "aco" : "core",
+    workdays: Array.isArray(entry?.workdays) ? entry.workdays.map((day) => String(day || "").trim().toLowerCase()).filter(Boolean) : ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    states: String(entry?.states || "").trim(),
+    assignments: Array.isArray(entry?.assignments) ? entry.assignments : [],
+  };
+}
+
+function normalizeRoster(entries) {
+  if (!Array.isArray(entries)) return defaultRoster();
+  const seen = new Set();
+  return entries
+    .map((entry) => normalizeRosterEntry(entry))
+    .filter((entry) => {
+      const key = String(entry.name || "").trim().toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+async function readRoster() {
+  try {
+    const { body } = await downloadObject(ROSTER_OBJECT);
+    return normalizeRoster(JSON.parse(body.toString("utf8") || "[]"));
+  } catch {
+    return defaultRoster();
+  }
+}
+
+async function writeRoster(entries) {
+  const normalized = normalizeRoster(entries);
+  await uploadObject(
+    ROSTER_OBJECT,
+    "application/json; charset=utf-8",
+    Buffer.from(JSON.stringify(normalized, null, 2))
+  );
+  return normalized;
+}
+
 async function readSpecialistLogs() {
   try {
     const { body } = await downloadObject(SPECIALIST_LOGS_OBJECT);
@@ -784,6 +834,7 @@ module.exports = {
   readArchiveSettings,
   readCustomAssignments,
   readJsonBody,
+  readRoster,
   readSchedulingRules,
   readSkillsMatrix,
   readSpecialistLogs,
@@ -796,6 +847,7 @@ module.exports = {
   writeArchiveSettings,
   writeAuditLog,
   writeCustomAssignments,
+  writeRoster,
   writeSchedulingRules,
   writeSkillsMatrix,
   writeSpecialistLogs,

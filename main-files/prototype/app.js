@@ -89,6 +89,25 @@ function formatWorkdaysSummary(workdays) {
   return labels.join(", ");
 }
 
+function getWeekdayLabel(dayKey) {
+  const normalized = String(dayKey || "").trim().toLowerCase();
+  return weekDayDefinitions.find((day) => day.key === normalized)?.label || "Selected day";
+}
+
+function formatPermanentScheduleSummary(profile) {
+  const parts = [];
+  if (profile?.schedule) parts.push(`Default: ${profile.schedule}`);
+  const daySchedules = Object.entries(profile?.daySchedules || {});
+  if (daySchedules.length) {
+    daySchedules
+      .sort((a, b) => weekDayDefinitions.findIndex((day) => day.key === a[0]) - weekDayDefinitions.findIndex((day) => day.key === b[0]))
+      .forEach(([dayKey, schedule]) => {
+        parts.push(`${getWeekdayLabel(dayKey)}: ${schedule}`);
+      });
+  }
+  return parts.join(" • ") || "No permanent schedule set";
+}
+
 const rawInitialTeam = [
   {
     "name": "Ireal James",
@@ -2220,7 +2239,7 @@ function normalizeRosterTitle(title) {
   return title;
 }
 
-const initialTeam = rawInitialTeam.map((person) => ({
+const defaultInitialTeam = rawInitialTeam.map((person) => ({
   ...person,
   title: normalizeRosterTitle(person.title),
   teamGroup: acoNames.has(person.name) ? "aco" : "core",
@@ -2228,6 +2247,8 @@ const initialTeam = rawInitialTeam.map((person) => ({
   skills: inferSkills(person.assignments),
   assignments: expandAssignments(person.assignments),
 }));
+
+let initialTeam = cloneData(defaultInitialTeam);
 
 const baseAssignmentAliases = [
   { canonical: "Tier 2 Phones", phrases: ["tier 2 phones", "phones", "phone", "phone queue"] },
@@ -2239,8 +2260,33 @@ const baseAssignmentAliases = [
   { canonical: "Disputes", phrases: ["disputes", "dispute"] },
   { canonical: "Game Reports", phrases: ["game reports", "game report"] },
   { canonical: "Training", phrases: ["training", "in training"] },
-  { canonical: "OOO/Sick/PTO", phrases: ["ooo", "pto", "out today", "out", "sick"] },
+  { canonical: "Out of Office", phrases: ["out of office", "ooo", "out today", "out"] },
+  { canonical: "Sick", phrases: ["sick", "sick day"] },
+  { canonical: "PTO", phrases: ["pto", "vacation"] },
 ];
+
+const OUT_STATUS_ASSIGNMENTS = ["Out of Office", "Sick", "PTO"];
+
+function normalizeOutStatusAssignment(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (text === "OOO/Sick/PTO") return "Out of Office";
+  if (/^out of office$/i.test(text)) return "Out of Office";
+  if (/^ooo$/i.test(text)) return "Out of Office";
+  if (/sick/i.test(text)) return "Sick";
+  if (/pto/i.test(text)) return "PTO";
+  return text;
+}
+
+function isOutStatusAssignment(value) {
+  return OUT_STATUS_ASSIGNMENTS.includes(normalizeOutStatusAssignment(value));
+}
+
+function getDefaultOutStatusFromText(text) {
+  if (/sick/i.test(text)) return "Sick";
+  if (/pto/i.test(text)) return "PTO";
+  return "Out of Office";
+}
 
 const assignmentColors = {
   "Tier 2 Phones": "#2f6c6a",
@@ -2252,6 +2298,9 @@ const assignmentColors = {
   Calibrations: "#b85c12",
   "Game Reports": "#4c6edb",
   Training: "#a06cd5",
+  "Out of Office": "#9d3f18",
+  Sick: "#b45309",
+  PTO: "#7c3f00",
   "OOO/Sick/PTO": "#9d3f18",
   Flex: "#6b7280",
   "Bugs Escalation": "#d64550",
@@ -2284,17 +2333,24 @@ const assignmentShortLabels = {
   Calibrations: "Calibrations",
   "Game Reports": "Game Reports",
   Training: "Training",
-  "OOO/Sick/PTO": "OOO/Sick/PTO",
+  "Out of Office": "Out of Office",
+  Sick: "Sick",
+  PTO: "PTO",
+  "OOO/Sick/PTO": "Out of Office",
   Flex: "Flex",
   "Bugs Escalation": "Bugs Escalation",
   "Login Issues": "Login Issues",
   "All Channels": "All Channels",
-  MOD: "MOD",
+  MOD: "Manager on Duty",
 };
 
+function getAssignmentDisplayLabel(assignment) {
+  return assignmentShortLabels[assignment] || assignment;
+}
+
 function getAssignmentChartLabel(assignment, count, width) {
-  const shortLabel = assignmentShortLabels[assignment] || assignment;
-  if (width > 16) return `${assignment} (${count})`;
+  const shortLabel = getAssignmentDisplayLabel(assignment);
+  if (width > 16) return `${shortLabel} (${count})`;
   if (width > 9) return `${shortLabel} (${count})`;
   return shortLabel;
 }
@@ -2318,17 +2374,21 @@ function formatManagerName(value) {
   return text;
 }
 
-const managers = [
-  "all",
-  ...new Set(
-    [
-      "Sam",
-      "Erik",
-      "Rachel",
-      ...initialTeam.map((person) => formatManagerName(person.manager)),
-    ].filter(looksLikeManagerName)
-  ),
-];
+function buildManagerOptions(roster = initialTeam) {
+  return [
+    "all",
+    ...new Set(
+      [
+        "Sam",
+        "Erik",
+        "Rachel",
+        ...roster.map((person) => formatManagerName(person.manager)),
+      ].filter(looksLikeManagerName)
+    ),
+  ];
+}
+
+let managers = buildManagerOptions();
 function buildAdminProfiles() {
   return [
     {
@@ -2350,8 +2410,9 @@ function buildAdminProfiles() {
   ];
 }
 
-const adminProfiles = buildAdminProfiles();
+let adminProfiles = buildAdminProfiles();
 const assignmentManagerCard = document.getElementById("assignment-manager-card");
+const rosterManagerCard = document.getElementById("roster-manager-card");
 
 const teamFilter = document.getElementById("team-filter");
 const managerFilter = document.getElementById("manager-filter");
@@ -2455,6 +2516,7 @@ const shiftSearchInput = document.getElementById("shift-search-input");
 const shiftEditorList = document.getElementById("shift-editor-list");
 const skillsSearchInput = document.getElementById("skills-search-input");
 const skillsMatrix = document.getElementById("skills-matrix");
+const rosterSearchInput = document.getElementById("roster-search-input");
 const schedulingRulesCard = document.getElementById("scheduling-rules-card");
 const automationsList = document.getElementById("automations-list");
 const todayExceptionsCard = document.getElementById("today-exceptions-card");
@@ -2517,6 +2579,8 @@ let customAssignmentsState = null;
 let hiddenBuiltInAssignmentsState = null;
 let assignmentRenameState = null;
 let skillsMatrixState = null;
+let rosterState = null;
+let rosterSearchTerm = "";
 
 const automationDefinitions = [
   {
@@ -2528,13 +2592,13 @@ const automationDefinitions = [
   {
     id: "nightly-pdf-archive",
     name: "Nightly Schedule Archive",
-    description: "At 12:00 a.m., save a copy of the day's schedule into Supabase Storage.",
+    description: "Save the latest backend snapshot of the day into Supabase Storage during the nightly archive run.",
     time: "00:00",
     kind: "pdf-archive",
   },
 ];
 let currentView = "portal";
-let currentAdminProfileId = adminProfiles[0].id;
+let currentAdminProfileId = adminProfiles[0]?.id || "";
 let selectedAgentId = "";
 let assistantTeamMode = "all";
 let assistantManagerMode = "all";
@@ -2590,6 +2654,7 @@ const auditLogFallbackStorageKey = "daily-ops-audit-log-v1";
 const specialistLogsFallbackStorageKey = "daily-ops-specialist-logs-v1";
 const adminPasswordsStorageKey = "daily-ops-admin-passwords-v1";
 const skillsMatrixStorageKey = "daily-ops-skills-matrix-v1";
+const rosterStorageKey = "daily-ops-roster-v1";
 const shiftTimeOptions = Array.from({ length: 17 }, (_, index) => 8 + index);
 let auditLogEntries = [];
 let auditLogLoaded = false;
@@ -2668,7 +2733,7 @@ function renderTodayExceptionsCard() {
   const todayKey = getTodayKey();
   const todayOverrideEntries = Object.entries(overrides.daily?.[todayKey] || {})
     .map(([key, value]) => ({ key, value, person: visibleMap.get(key) }))
-    .filter((entry) => entry.person && entry.value?.schedule);
+    .filter((entry) => entry.person && (entry.value?.schedule || Object.keys(entry.value?.daySchedules || {}).length));
   const permanentOverrideEntries = Object.entries(overrides.permanent || {})
     .map(([key, value]) => ({ key, value, person: visibleMap.get(key) }))
     .filter((entry) => entry.person && entry.value?.schedule);
@@ -2694,7 +2759,7 @@ function renderTodayExceptionsCard() {
       <section class="exceptions-group">
         <h4>Today-Only Shift Changes</h4>
         ${todayOverrideEntries.length
-          ? `<div class="exceptions-list">${todayOverrideEntries.map((entry) => `<div class="exception-row"><strong>${entry.person.name}</strong><span>${entry.value.schedule}</span></div>`).join("")}</div>`
+          ? `<div class="exceptions-list">${todayOverrideEntries.map((entry) => `<div class="exception-row"><strong>${entry.person.name}</strong><span>${formatPermanentScheduleSummary(entry.value)}</span></div>`).join("")}</div>`
           : `<div class="empty-state">No today-only shift overrides right now.</div>`}
       </section>
       <section class="exceptions-group">
@@ -2874,14 +2939,18 @@ function getStoredScheduleProfile(person, dateKey = getTodayKey(), weekdayKey = 
   const initialPerson = getInitialPersonRecord(person);
   const permanentOverride = overrides.permanent[personKey] || {};
   const dailyOverride = overrides.daily[dateKey]?.[personKey] || {};
-  const baseSchedule = dailyOverride.schedule || permanentOverride.schedule || initialPerson.schedule || person.schedule;
+  const daySchedules = permanentOverride.daySchedules || {};
+  const daySpecificSchedule = daySchedules[weekdayKey] || "";
+  const baseSchedule = dailyOverride.schedule || daySpecificSchedule || permanentOverride.schedule || initialPerson.schedule || person.schedule;
   const workdays = normalizeWorkdays(permanentOverride.workdays || initialPerson.workdays || person.workdays);
-  const isWorkingDay = Boolean(dailyOverride.schedule) || workdays.includes(weekdayKey);
+  const isWorkingDay = Boolean(dailyOverride.schedule) || Boolean(daySpecificSchedule) || workdays.includes(weekdayKey);
   return {
     schedule: isWorkingDay ? baseSchedule : "Off",
     baseSchedule,
     workdays,
     isWorkingDay,
+    daySpecificSchedule,
+    daySchedules,
   };
 }
 
@@ -2968,7 +3037,7 @@ function deriveDisplayedWorkSchedule(person, profile = getStoredScheduleProfile(
   const primarySchedule = profile?.schedule || person.schedule || "";
   if (!primarySchedule) return "Off";
   if (/^off$/i.test(primarySchedule)) return "Off";
-  if (/ooo|pto|sick/i.test(primarySchedule)) return "OOO/Sick/PTO";
+  if (isOutStatusAssignment(primarySchedule)) return normalizeOutStatusAssignment(primarySchedule);
   if (parseScheduleWindow(primarySchedule)) return primarySchedule;
 
   const fallbackSchedule = profile?.baseSchedule || getInitialPersonRecord(person)?.schedule || person.schedule || "";
@@ -2977,7 +3046,7 @@ function deriveDisplayedWorkSchedule(person, profile = getStoredScheduleProfile(
   const workedIndexes = timeBlocks
     .map((block, blockIndex) => {
       const assignment = person.assignments[blockIndex]?.[0] || "";
-      return assignment && assignment !== "Open" && assignment !== "OOO/Sick/PTO" ? blockIndex : null;
+      return assignment && assignment !== "Open" && !isOutStatusAssignment(assignment) ? blockIndex : null;
     })
     .filter((value) => value !== null);
 
@@ -3019,14 +3088,15 @@ function applyStoredShiftOverrides() {
     person.workdays = profile.workdays;
     applyScheduleToPerson(person, profile.schedule);
     const dailyEntry = getDailyOverrideEntry(overrides, todayKey, personId(person));
-    if (/ooo|pto|sick/i.test(dailyEntry?.schedule || '')) {
-      person.schedule = 'OOO/Sick/PTO';
-      person.assignments = person.assignments.map(() => ['OOO/Sick/PTO', false]);
+    const dailyStatus = normalizeOutStatusAssignment(dailyEntry?.status || dailyEntry?.schedule || '');
+    if (isOutStatusAssignment(dailyStatus)) {
+      person.schedule = dailyStatus;
+      person.assignments = person.assignments.map(() => [dailyStatus, false]);
     }
   });
 }
 
-function toggleSpreadsheetOutState(person, shouldBeOut) {
+function toggleSpreadsheetOutState(person, shouldBeOut, status = "Out of Office") {
   const overrides = loadShiftOverrides();
   const todayKey = getTodayKey();
   const personKey = personId(person);
@@ -3042,16 +3112,18 @@ function toggleSpreadsheetOutState(person, shouldBeOut) {
         assignments: cloneAssignments(person.assignments),
       };
     }
-    existingEntry.schedule = 'OOO/Sick/PTO';
+    const nextStatus = normalizeOutStatusAssignment(status) || "Out of Office";
+    existingEntry.status = nextStatus;
+    existingEntry.schedule = nextStatus;
     overrides.daily[todayKey][personKey] = existingEntry;
     saveShiftOverrides(overrides);
-    person.schedule = 'OOO/Sick/PTO';
-    person.assignments = person.assignments.map(() => ['OOO/Sick/PTO', false]);
+    person.schedule = nextStatus;
+    person.assignments = person.assignments.map(() => [nextStatus, false]);
     if (currentView === 'admin') {
       void appendAuditLogEntry({
         actionType: 'mark_out_day',
-        summary: `${person.name} marked out from assignment graph`,
-        details: ['Status: OOO/Sick/PTO', 'Source: Assignment graph OUT column'],
+        summary: `${person.name} marked as ${nextStatus.toLowerCase()} from assignment graph`,
+        details: [`Status: ${nextStatus}`, 'Source: Assignment graph OUT column'],
       });
     }
     return;
@@ -3768,6 +3840,159 @@ function cloneData(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+const rosterRoleOptions = [
+  { value: "support-specialist", label: "Support Specialist", title: "Support Specialist", teamGroup: "core" },
+  { value: "aco-analyst", label: "ACO Analyst", title: "ACO Analyst", teamGroup: "aco" },
+  { value: "senior-tier-3", label: "Senior Tier 3", title: "Senior Tier 3", teamGroup: "core" },
+  { value: "manager", label: "Manager", title: "Manager", teamGroup: "core" },
+];
+
+function getBlankRosterAssignments() {
+  return timeBlocks.map(() => ["", false]);
+}
+
+function serializeRosterEntry(person) {
+  return {
+    name: String(person?.name || "").trim(),
+    title: normalizeRosterTitle(person?.title || "Support Specialist"),
+    manager: String(person?.manager || "Sam").trim() || "Sam",
+    schedule: String(person?.schedule || "8am - 5pm").trim() || "8am - 5pm",
+    teamGroup: person?.teamGroup === "aco" ? "aco" : "core",
+    workdays: normalizeWorkdays(person?.workdays),
+    states: String(person?.states || "").trim(),
+    assignments: cloneAssignments(person?.assignments?.length ? person.assignments : getBlankRosterAssignments()),
+  };
+}
+
+function defaultRoster() {
+  return defaultInitialTeam.map((person) => serializeRosterEntry(person));
+}
+
+function normalizeRosterEntries(entries) {
+  const source = Array.isArray(entries) ? entries : defaultRoster();
+  const seen = new Set();
+  return source
+    .map((entry) => {
+      const normalized = serializeRosterEntry(entry);
+      if (!normalized.name) return null;
+      const key = personId(normalized);
+      if (seen.has(key)) return null;
+      seen.add(key);
+      return normalized;
+    })
+    .filter(Boolean);
+}
+
+function loadRoster() {
+  if (rosterState) {
+    return cloneData(rosterState);
+  }
+  try {
+    const raw = window.localStorage.getItem(rosterStorageKey);
+    rosterState = normalizeRosterEntries(raw ? JSON.parse(raw) : defaultRoster());
+  } catch {
+    rosterState = defaultRoster();
+  }
+  return cloneData(rosterState);
+}
+
+function saveRoster(entries) {
+  rosterState = normalizeRosterEntries(entries);
+  window.localStorage.setItem(rosterStorageKey, JSON.stringify(rosterState));
+  return cloneData(rosterState);
+}
+
+function buildInitialTeamFromRosterEntries(entries) {
+  const normalized = normalizeRosterEntries(entries);
+  return normalized.map((entry) => {
+    const fallback = defaultInitialTeam.find((person) => personId(person) === personId(entry));
+    const assignments = cloneAssignments(entry.assignments?.length ? entry.assignments : fallback?.assignments || getBlankRosterAssignments());
+    return {
+      ...(fallback || {}),
+      ...entry,
+      title: normalizeRosterTitle(entry.title || fallback?.title || "Support Specialist"),
+      manager: String(entry.manager || fallback?.manager || "Sam").trim() || "Sam",
+      schedule: String(entry.schedule || fallback?.schedule || "8am - 5pm").trim() || "8am - 5pm",
+      teamGroup: entry.teamGroup === "aco" || fallback?.teamGroup === "aco" ? "aco" : "core",
+      workdays: normalizeWorkdays(entry.workdays || fallback?.workdays),
+      states: entry.states || fallback?.states || "",
+      skills: inferSkills(assignments),
+      assignments: expandAssignments(assignments),
+    };
+  });
+}
+
+function refreshAdminCollections() {
+  managers = buildManagerOptions(initialTeam);
+  adminProfiles = buildAdminProfiles();
+  if (!adminProfiles.some((profile) => profile.id === currentAdminProfileId)) {
+    currentAdminProfileId = adminProfiles[0]?.id || "";
+  }
+}
+
+function applyRosterEntries(entries, { preserveCurrent = true, skipRender = false } = {}) {
+  const previousTeamById = new Map(team.map((person) => [personId(person), person]));
+  const normalized = saveRoster(entries);
+  const nextInitialTeam = buildInitialTeamFromRosterEntries(normalized);
+  initialTeam = cloneData(nextInitialTeam);
+  team = nextInitialTeam.map((person) => {
+    const existing = preserveCurrent ? previousTeamById.get(personId(person)) : null;
+    if (!existing) return person;
+    return {
+      ...person,
+      schedule: existing.schedule || person.schedule,
+      assignments: cloneAssignments(existing.assignments?.length ? existing.assignments : person.assignments),
+      skills: [...new Set(((existing.skills?.length ? existing.skills : person.skills) || []).map((skill) => String(skill || "").trim()).filter(Boolean))],
+      workdays: normalizeWorkdays(existing.workdays || person.workdays),
+    };
+  });
+
+  const validIds = new Set(initialTeam.map((person) => personId(person)));
+  const trimmedSkills = Object.fromEntries(
+    Object.entries(loadSkillsMatrix()).filter(([personKey]) => validIds.has(personKey))
+  );
+  saveSkillsMatrix(trimmedSkills);
+  applySkillsMatrixToCollection(team, trimmedSkills);
+  refreshAdminCollections();
+  if (selectedAgentId && !initialTeam.some((person) => personId(person) === selectedAgentId)) {
+    selectedAgentId = "";
+    if (currentView === "agent") currentView = "portal";
+  }
+  if (!skipRender) render();
+  return normalized;
+}
+
+async function persistRoster(entries) {
+  const normalized = normalizeRosterEntries(entries);
+  const validIds = new Set(normalized.map((entry) => personId(entry)));
+  const trimmedSkills = Object.fromEntries(
+    Object.entries(loadSkillsMatrix()).filter(([personKey]) => validIds.has(personKey))
+  );
+
+  if (!backendAvailable) {
+    saveRoster(normalized);
+    saveSkillsMatrix(trimmedSkills);
+    return { roster: cloneData(normalized), skills: cloneSkillsMatrix(trimmedSkills) };
+  }
+
+  const response = await fetch("/api/skills", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ roster: normalized, skills: trimmedSkills }),
+  });
+  const payload = parseJsonSafely(await response.text(), {});
+  if (!response.ok) {
+    throw new Error(payload.details || payload.error || `Failed to save roster (${response.status})`);
+  }
+
+  saveRoster(payload?.roster || normalized);
+  saveSkillsMatrix(payload?.skills || trimmedSkills);
+  return {
+    roster: cloneData(rosterState),
+    skills: cloneSkillsMatrix(skillsMatrixState),
+  };
+}
+
 function defaultSkillsMatrix() {
   return {};
 }
@@ -3839,11 +4064,14 @@ async function syncSkillsMatrixFromServer() {
     if (!response.ok) {
       throw new Error(payload.details || payload.error || `Failed to load skills (${response.status})`);
     }
+    applyRosterEntries(payload?.roster || loadRoster(), { preserveCurrent: false, skipRender: true });
     saveSkillsMatrix(payload?.skills || defaultSkillsMatrix());
     applySkillsMatrixToCollection(team, skillsMatrixState);
     render();
   } catch {
-    applySkillsMatrixToCollection(team, loadSkillsMatrix());
+    applyRosterEntries(loadRoster(), { preserveCurrent: false, skipRender: true });
+    refreshAdminCollections();
+  applySkillsMatrixToCollection(team, loadSkillsMatrix());
     render();
   }
 }
@@ -3857,11 +4085,14 @@ async function persistSkillsMatrix(skillsMatrix) {
   const response = await fetch("/api/skills", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ skills: skillsMatrix }),
+    body: JSON.stringify({ skills: skillsMatrix, roster: loadRoster() }),
   });
   const payload = parseJsonSafely(await response.text(), {});
   if (!response.ok) {
     throw new Error(payload.details || payload.error || `Failed to save skills (${response.status})`);
+  }
+  if (payload?.roster) {
+    saveRoster(payload.roster);
   }
   return saveSkillsMatrix(payload?.skills || skillsMatrix);
 }
@@ -5036,7 +5267,7 @@ function getAgentAlertScopeOptions(person) {
   const options = [
     { value: "all", label: "All assignments" },
     ...assignmentOptions
-      .filter((assignment) => !["all", "Open", "OOO/Sick/PTO", "MOD"].includes(assignment))
+      .filter((assignment) => assignment !== "all" && assignment !== "Open" && assignment !== "MOD" && !isOutStatusAssignment(assignment))
       .map((assignment) => ({
         value: assignment,
         label: assignment,
@@ -5044,7 +5275,7 @@ function getAgentAlertScopeOptions(person) {
   ];
 
   if (isManagerPerson(person)) {
-    options.push({ value: "MOD", label: "MOD only" });
+    options.push({ value: "MOD", label: "Manager on Duty only" });
   }
 
   return options;
@@ -5390,7 +5621,7 @@ function describeAction(action) {
     return `Use ${action.hours}-hour blocks for the whole board.`;
   }
   if (action.type === "mark_out_day") {
-    return `${action.personName} will be marked out for the entire day.`;
+    return `${action.personName} will be marked as ${(action.status || 'Out of Office').toLowerCase()} for the entire day.`;
   }
   if (action.type === "set_assignment_block") {
     return `${action.personName} will be set to ${action.assignment} during ${formatBlockLabel(
@@ -6161,7 +6392,7 @@ function renderArchivePreviewTable(archive, csvText) {
                     <div class="person-meta">${person.title} • ${person.manager}</div>
                   </div>
                   <div class="assignment-main">
-                    <span class="assignment-chip ${person.assignment === "OOO/Sick/PTO" ? "out" : person.assignment === "Open" ? "open" : ""}">${person.assignment}</span>
+                    <span class="assignment-chip ${person.isOutStatusAssignment(assignment) ? "out" : person.assignment === "Open" ? "open" : ""}">${getAssignmentDisplayLabel(person.assignment)}</span>
                     <div class="schedule-badge">${displayedSchedule}</div>
                   </div>
                 </article>
@@ -6475,7 +6706,7 @@ function applyAgentPreferences() {
         preferences.alertScope === "all"
           ? "all assignments"
           : preferences.alertScope === "MOD"
-            ? "MOD"
+            ? "Manager on Duty"
             : preferences.alertScope;
       const timingLabel =
         preferences.alertTiming === "start"
@@ -6648,7 +6879,7 @@ function scheduleStartValue(schedule) {
 }
 
 function personIsOut(person) {
-  return person.assignments.every(([assignment]) => assignment === "OOO/Sick/PTO");
+  return person.assignments.every(([assignment]) => isOutStatusAssignment(assignment));
 }
 
 function getManualAssignmentOptions(person) {
@@ -6662,10 +6893,10 @@ function getManualAssignmentOptions(person) {
         "Calibrations",
         "Game Reports",
         "Training",
-        "OOO/Sick/PTO",
-        ...person.assignments.map(([assignment]) => assignment).filter(Boolean),
+        ...OUT_STATUS_ASSIGNMENTS,
+        ...person.assignments.map(([assignment]) => normalizeOutStatusAssignment(assignment)).filter(Boolean),
       ].filter((assignment) => {
-        if (assignment === "Open" || assignment === "OOO/Sick/PTO" || assignment === "Training") return true;
+        if (assignment === "Open" || assignment === "Training" || isOutStatusAssignment(assignment)) return true;
         return !editableSkillAssignments.includes(assignment) || personHasSkill(person, assignment);
       })
     ),
@@ -6745,10 +6976,10 @@ function answerWhenPersonOnMod(text) {
 
   const ranges = getAssignmentRanges(matchedPerson, "MOD");
   if (!ranges.length) {
-    return `${matchedPerson.name} is not MOD today.`;
+    return `${matchedPerson.name} is not Manager on Duty today.`;
   }
 
-  return `${matchedPerson.name} is MOD during ${ranges
+  return `${matchedPerson.name} is Manager on Duty during ${ranges
     .map((range) => formatBlockRange(range.startIndex, range.endIndex))
     .join(", ")}.`;
 }
@@ -6772,7 +7003,7 @@ function findFallbackAssignment(person, blockIndex) {
       if (
         assignment &&
         assignment !== "Tier 2 Phones" &&
-        assignment !== "OOO/Sick/PTO" &&
+        !isOutStatusAssignment(assignment) &&
         personHasSkill(person, assignment)
       ) {
         return assignment;
@@ -6785,7 +7016,7 @@ function findFallbackAssignment(person, blockIndex) {
       if (
         assignment &&
         assignment !== "Tier 2 Phones" &&
-        assignment !== "OOO/Sick/PTO" &&
+        !isOutStatusAssignment(assignment) &&
         personHasSkill(person, assignment)
       ) {
         return assignment;
@@ -6944,16 +7175,19 @@ function buildOutPlan(text) {
       ? people[0].name
       : `${people[0].name} and ${people.length - 1} others`;
 
+  const status = getDefaultOutStatusFromText(text);
+
   return {
-    title: `Mark ${peopleLabel} out today`,
-    summary: `${people.map((person) => person.name).join(", ")} will be marked as out for every time block today.`,
+    title: `Mark ${peopleLabel} as ${status.toLowerCase()} today`,
+    summary: `${people.map((person) => person.name).join(", ")} will be marked as ${status.toLowerCase()} for every time block today.`,
     scope: "Full day update",
     actions: people.map((person) => ({
         type: "mark_out_day",
         personId: personId(person),
         personName: person.name,
+        status,
       })),
-    assistantText: `I drafted a full-day out-of-office change for ${people
+    assistantText: `I drafted a full-day ${status.toLowerCase()} change for ${people
       .map((person) => person.name)
       .join(", ")}. Review it on the right, then apply it if it looks good.`,
   };
@@ -7014,7 +7248,7 @@ function buildMovePlan(text) {
   const blockIndexes = parseTimeRange(text);
 
   if (!people.length || !assignment || !blockIndexes) return null;
-  if (assignment === "OOO/Sick/PTO") return buildOutPlan(text);
+  if (isOutStatusAssignment(assignment)) return buildOutPlan(text);
 
   const actions = people.map((person) => ({
     type: "set_assignment_range",
@@ -7055,7 +7289,7 @@ function buildMixPlan(text) {
 
   const person = findPersonFromText(text);
   const assignments = findAssignmentsFromText(text).filter(
-    (assignment) => assignment !== "OOO/Sick/PTO" && assignment !== "Training"
+    (assignment) => !isOutStatusAssignment(assignment) && assignment !== "Training"
   );
 
   if (!person || assignments.length < 2) return null;
@@ -7754,7 +7988,7 @@ async function getLatestPhoneHistoryContext() {
       if (assignment === "Tier 2 Phones") {
         counts[name] = (counts[name] || 0) + 1;
       }
-      if (assignment === "OOO/Sick/PTO") {
+      if (isOutStatusAssignment(assignment)) {
         previousDayOutNames.add(name);
       }
     });
@@ -8443,7 +8677,7 @@ function answerInsightQuestion(text) {
     const busiestAssignments = Object.entries(
       scopedTeam.reduce((counts, person) => {
         person.assignments.forEach(([assignment]) => {
-          if (!assignment || assignment === "OOO/Sick/PTO") return;
+          if (!assignment || isOutStatusAssignment(assignment)) return;
           counts[assignment] = (counts[assignment] || 0) + 1;
         });
         return counts;
@@ -8617,7 +8851,7 @@ function answerInsightQuestion(text) {
       .sort((a, b) => a.blockIndex - b.blockIndex || a.person.localeCompare(b.person));
 
     if (!modAssignments.length) {
-      return "No one is scheduled as MOD today.";
+      return "No one is scheduled as Manager on Duty today.";
     }
 
     const groupedAssignments = [];
@@ -8649,7 +8883,7 @@ function answerInsightQuestion(text) {
       return `${startTime}-${endTime}`;
     };
 
-    return `MOD today: ${groupedAssignments
+    return `Manager on Duty today: ${groupedAssignments
       .map((entry) => `${entry.person} (${formatRange(entry.startIndex, entry.endIndex)})`)
       .join(", ")}.`;
   }
@@ -8692,7 +8926,7 @@ function answerInsightQuestion(text) {
       .map((person) => ({
         name: person.name,
         count: person.assignments.filter(
-          ([assignment]) => assignment && assignment !== "OOO/Sick/PTO"
+          ([assignment]) => assignment && !isOutStatusAssignment(assignment)
         ).length,
       }))
       .sort((a, b) => b.count - a.count);
@@ -8718,7 +8952,7 @@ function answerInsightQuestion(text) {
       .map((person) => {
         const assignments = person.assignments
           .map(([assignment]) => assignment)
-          .filter((assignment) => assignment && assignment !== "OOO/Sick/PTO");
+          .filter((assignment) => assignment && !isOutStatusAssignment(assignment));
         return {
           name: person.name,
           variety: new Set(assignments).size,
@@ -8815,7 +9049,9 @@ function applyAction(action) {
   if (!person) return;
 
   if (action.type === "mark_out_day") {
-    person.assignments = person.assignments.map(() => ["OOO/Sick/PTO", false]);
+    const status = normalizeOutStatusAssignment(action.status || 'Out of Office') || 'Out of Office';
+    person.schedule = status;
+    person.assignments = person.assignments.map(() => [status, false]);
     return;
   }
 
@@ -9158,6 +9394,9 @@ function renderAutomations() {
                           ${archiveLibrary.folder || "Supabase bucket: daily-ops-archives"}
                         </div>
                         <div class="automation-cloud-note">
+                          The app saves the latest version of the schedule to the backend during the day. The nightly archive run turns that saved snapshot into the archive file.
+                        </div>
+                        <div class="automation-cloud-note">
                           ${
                             archiveStatus.lastArchivedDate
                               ? `Last archived day: ${archiveStatus.lastArchivedDate}${archiveStatus.lastArchivedAt ? ` • ${new Date(archiveStatus.lastArchivedAt).toLocaleString()}` : ""}`
@@ -9168,7 +9407,7 @@ function renderAutomations() {
                           ${archiveStatus.nextRun ? `Next run: ${new Date(archiveStatus.nextRun).toLocaleString()}` : "Next run will appear here after the server refreshes."}
                         </div>
                         <div class="automation-cloud-note">
-                          If the app already saved that day’s schedule snapshot, a missed midnight run can catch up the next time your computer and server come back on.
+                          On the Hobby plan, this is a nightly catch-up run, not an exact minute-by-minute trigger. If the day’s snapshot already exists, the nightly run can still create that archive later.
                         </div>
                       </div>
                     </div>
@@ -9303,6 +9542,149 @@ function renderArchives() {
     }
     loadArchivePreview(selectedArchive);
   }
+}
+
+function renderRosterManager() {
+  if (!rosterManagerCard) return;
+
+  const normalizedQuery = normalizeText(rosterSearchTerm || "").trim();
+  const visibleRoster = loadRoster().filter((entry) => {
+    if (!normalizedQuery) return true;
+    const haystack = normalizeText([entry.name, entry.title, entry.manager, entry.teamGroup === "aco" ? "ACO" : "Support"].join(" "));
+    return haystack.includes(normalizedQuery);
+  });
+
+  rosterManagerCard.innerHTML = `
+    <div class="rules-card roster-manager-card-shell">
+      <div class="roster-manager-toolbar">
+        <label class="roster-manager-search-field">
+          <span>Search roster</span>
+          <input id="roster-search-input" type="text" class="portal-input" placeholder="Type a name, manager, title, or team" value="${escapeHtml(rosterSearchTerm || "")}" />
+        </label>
+        <button type="button" class="secondary-button roster-clear-button" id="clear-roster-button">Clear Roster</button>
+      </div>
+      <div class="roster-manager-add">
+        <label>
+          <span>Name</span>
+          <input id="roster-new-name" type="text" class="portal-input" placeholder="Add a new person" />
+        </label>
+        <label>
+          <span>Role</span>
+          <select id="roster-new-role" class="portal-input">
+            ${rosterRoleOptions.map((option) => `<option value="${option.value}">${option.label}</option>`).join("")}
+          </select>
+        </label>
+        <label>
+          <span>Manager</span>
+          <input id="roster-new-manager" type="text" class="portal-input" placeholder="Sam" value="Sam" />
+        </label>
+        <button type="button" class="secondary-button roster-add-button" id="add-roster-person-button">Add Person</button>
+      </div>
+      <div class="roster-manager-list">
+        ${visibleRoster.length
+          ? visibleRoster
+              .map(
+                (entry) => `
+                  <div class="roster-manager-row">
+                    <div class="roster-manager-copy">
+                      <strong>${escapeHtml(entry.name)}</strong>
+                      <span>${escapeHtml(entry.title)} • ${escapeHtml(entry.manager || "Sam")} • ${entry.teamGroup === "aco" ? "ACO" : "Support"}</span>
+                    </div>
+                    <button type="button" class="secondary-button assignment-remove-button" data-delete-roster-person="${escapeHtml(personId(entry))}">Delete</button>
+                  </div>
+                `
+              )
+              .join("")
+          : '<div class="empty-state">No people match that search.</div>'}
+      </div>
+    </div>
+  `;
+
+  rosterManagerCard.querySelector('#roster-search-input')?.addEventListener('input', (event) => {
+    rosterSearchTerm = event.target.value || '';
+    renderRosterManager();
+  });
+
+  rosterManagerCard.querySelector('#add-roster-person-button')?.addEventListener('click', async () => {
+    const nameInput = rosterManagerCard.querySelector('#roster-new-name');
+    const roleSelect = rosterManagerCard.querySelector('#roster-new-role');
+    const managerInput = rosterManagerCard.querySelector('#roster-new-manager');
+    const name = String(nameInput?.value || '').trim();
+    const role = rosterRoleOptions.find((option) => option.value === String(roleSelect?.value || 'support-specialist')) || rosterRoleOptions[0];
+    const manager = String(managerInput?.value || 'Sam').trim() || 'Sam';
+    if (!name) {
+      nameInput?.focus();
+      return;
+    }
+    const nextRoster = loadRoster();
+    const nextEntry = serializeRosterEntry({
+      name,
+      title: role.title,
+      manager,
+      schedule: '8am - 5pm',
+      teamGroup: role.teamGroup,
+      workdays: defaultWorkdays(),
+      assignments: getBlankRosterAssignments(),
+    });
+    if (nextRoster.some((entry) => personId(entry) === personId(nextEntry))) {
+      nameInput?.focus();
+      nameInput?.select?.();
+      return;
+    }
+    nextRoster.push(nextEntry);
+    try {
+      const payload = await persistRoster(nextRoster);
+      applyRosterEntries(payload.roster, { preserveCurrent: true, skipRender: true });
+      if (payload.skills) applySkillsMatrixToCollection(team, payload.skills);
+      await appendAuditLogEntry({
+        actionType: 'roster-added',
+        summary: `Added ${name} to the roster`,
+        details: [`Role: ${role.title}`, `Manager: ${manager}`],
+      });
+      render();
+    } catch (error) {
+      console.error('Unable to save roster entry', error);
+    }
+  });
+
+  rosterManagerCard.querySelector('#clear-roster-button')?.addEventListener('click', async () => {
+    if (!window.confirm('Clear the full roster? You can add people back right after.')) return;
+    try {
+      const payload = await persistRoster([]);
+      applyRosterEntries(payload.roster, { preserveCurrent: false, skipRender: true });
+      if (payload.skills) applySkillsMatrixToCollection(team, payload.skills);
+      await appendAuditLogEntry({
+        actionType: 'roster-cleared',
+        summary: 'Cleared the full roster',
+        details: ['Roster manager'],
+      });
+      render();
+    } catch (error) {
+      console.error('Unable to clear roster', error);
+    }
+  });
+
+  rosterManagerCard.querySelectorAll('[data-delete-roster-person]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const personKey = button.dataset.deleteRosterPerson || '';
+      const currentRoster = loadRoster();
+      const target = currentRoster.find((entry) => personId(entry) === personKey);
+      if (!target) return;
+      try {
+        const payload = await persistRoster(currentRoster.filter((entry) => personId(entry) !== personKey));
+        applyRosterEntries(payload.roster, { preserveCurrent: true, skipRender: true });
+        if (payload.skills) applySkillsMatrixToCollection(team, payload.skills);
+        await appendAuditLogEntry({
+          actionType: 'roster-removed',
+          summary: `Removed ${target.name} from the roster`,
+          details: [`Title: ${target.title}`],
+        });
+        render();
+      } catch (error) {
+        console.error('Unable to remove roster entry', error);
+      }
+    });
+  });
 }
 
 function renderSkillsMatrix(filteredTeam = getSkillsMatrixTeam()) {
@@ -9441,7 +9823,7 @@ function renderSpreadsheetChartMarkup(visiblePeople, groups, options = {}) {
                   const textColor = getReadableTextColor(cellColor);
                   if (!editable) {
                     return `
-                      <td class="spreadsheet-assignment-cell ${displayAssignment === "OOO/Sick/PTO" ? "out" : ""} ${isMixed ? "mixed" : ""}">
+                      <td class="spreadsheet-assignment-cell ${isOutStatusAssignment(displayAssignment) ? "out" : ""} ${isMixed ? "mixed" : ""}">
                         <div class="spreadsheet-assignment-pill static" style="--assignment-cell:${cellColor}; --assignment-text:${textColor}" title="${displayLabel}">
                           <span>${displayLabel}</span>
                         </div>
@@ -9459,7 +9841,7 @@ function renderSpreadsheetChartMarkup(visiblePeople, groups, options = {}) {
                       .join("")}
                   `;
                   return `
-                    <td class="spreadsheet-assignment-cell ${displayAssignment === "OOO/Sick/PTO" ? "out" : ""} ${isMixed ? "mixed" : ""}">
+                    <td class="spreadsheet-assignment-cell ${isOutStatusAssignment(displayAssignment) ? "out" : ""} ${isMixed ? "mixed" : ""}">
                       <div class="spreadsheet-assignment-pill" style="--assignment-cell:${cellColor}; --assignment-text:${textColor}">
                         <select
                           class="spreadsheet-assignment-select"
@@ -9478,7 +9860,10 @@ function renderSpreadsheetChartMarkup(visiblePeople, groups, options = {}) {
               return `
                 <tr class="spreadsheet-row ${personIsOut(person) ? "is-out" : ""}">
                   <td class="sticky-col sticky-out spreadsheet-out-cell">
-                    <input type="checkbox" class="spreadsheet-out-toggle" data-person-id="${personId(person)}" ${personIsOut(person) ? "checked" : ""} ${editable ? "" : "disabled"} aria-label="${person.name} out" />
+                    <div class="spreadsheet-out-controls">
+                      <input type="checkbox" class="spreadsheet-out-toggle" data-person-id="${personId(person)}" ${personIsOut(person) ? "checked" : ""} ${editable ? "" : "disabled"} aria-label="${person.name} out" />
+                      ${editable && personIsOut(person) ? `<select class="spreadsheet-out-status-select" data-person-id="${personId(person)}">${OUT_STATUS_ASSIGNMENTS.map((status) => `<option value="${status}" ${normalizeOutStatusAssignment(displayedSchedule) === status || normalizeOutStatusAssignment(person.assignments[0]?.[0]) === status ? "selected" : ""}>${status}</option>`).join("")}</select>` : ""}
+                    </div>
                   </td>
                   <td class="sticky-col sticky-name spreadsheet-name-cell">
                     <div class="spreadsheet-name">${person.name}</div>
@@ -9739,7 +10124,7 @@ function renderBoard(filteredTeam) {
                       </div>
                     `
                     : `
-                      <button type="button" class="assignment-chip assignment-chip-button ${primaryAssignment === "OOO/Sick/PTO" ? "out" : ""}" data-row-key="${rowKey}">${mixedAssignments.join(" / ")}</button>
+                      <button type="button" class="assignment-chip assignment-chip-button ${isOutStatusAssignment(primaryAssignment) ? "out" : ""}" data-row-key="${rowKey}">${mixedAssignments.map(getAssignmentDisplayLabel).join(" / ")}</button>
                     `
                 }
                 <div class="assignment-row-footer">
@@ -10153,7 +10538,7 @@ function renderAgentBoard() {
   );
   const currentModLabel = currentModPeople.length
     ? currentModPeople.map((member) => member.name).join(", ")
-    : "No MOD assigned";
+    : "No Manager on Duty assigned";
 
   const remainingGroups = groupedBlocks.filter((group) => {
     const lastBlock = timeBlocks[group.blockIndexes[group.blockIndexes.length - 1]];
@@ -10173,7 +10558,7 @@ function renderAgentBoard() {
             <div class="person-meta">${effectiveTodayProfile.schedule}</div>
           </div>
           <div class="assignment-main">
-            <span class="assignment-chip ${assignment === "OOO/Sick/PTO" ? "out" : assignment === "Open" ? "open" : ""}">${assignment}</span>
+            <span class="assignment-chip ${isOutStatusAssignment(assignment) ? "out" : assignment === "Open" ? "open" : ""}">${getAssignmentDisplayLabel(assignment)}</span>
           </div>
         </article>
       `;
@@ -10192,13 +10577,13 @@ function renderAgentBoard() {
         <span class="schedule-badge">Now</span>
       </div>
       <div class="agent-now-body">
-        <span class="assignment-chip agent-now-assignment ${currentAssignment === "OOO/Sick/PTO" ? "out" : currentAssignment === "Open" ? "open" : ""}">${currentAssignment}</span>
+        <span class="assignment-chip agent-now-assignment ${isOutStatusAssignment(currentAssignment) ? "out" : currentAssignment === "Open" ? "open" : ""}">${getAssignmentDisplayLabel(currentAssignment)}</span>
         <div class="person-meta">${person.name} • ${effectiveTodayProfile.schedule}</div>
       </div>
     </article>
 
     <article class="agent-mod-card">
-      <div class="time-subtitle">Current MOD</div>
+      <div class="time-subtitle">Current Manager on Duty</div>
       <div class="agent-mod-name">${currentModLabel}</div>
       <div class="person-meta">${currentGroup.label}</div>
     </article>
@@ -10241,8 +10626,11 @@ function render() {
   renderWorkspaceTabs();
   renderChart(filteredTeam);
   renderShiftEditor();
+  populatePortalAgentSelect();
+  populateAdminIdentitySelect();
   renderSkillsMatrix(getSkillsMatrixTeam());
   renderAssignmentManager();
+  renderRosterManager();
   renderSchedulingRules();
   renderAdminPasswordManager();
   renderAutomations();
@@ -10436,6 +10824,10 @@ applyPlanButton.addEventListener("click", applyPendingPlan);
 discardPlanButton.addEventListener("click", discardPendingPlan);
 resetDataButton.addEventListener("click", () => {
   window.localStorage.removeItem(shiftOverrideStorageKey);
+  window.localStorage.removeItem(rosterStorageKey);
+  initialTeam = cloneData(defaultInitialTeam);
+  saveRoster(defaultRoster());
+  refreshAdminCollections();
   team = cloneData(initialTeam);
   applySkillsMatrixToCollection(team, loadSkillsMatrix());
   editingBoardRow = null;
@@ -10598,6 +10990,7 @@ archivePreviewDetails?.addEventListener("toggle", () => {
     archivePreviewSummaryAction.textContent = archivePreviewDetails.open ? "Collapse" : "Expand";
   }
 });
+applyRosterEntries(loadRoster(), { preserveCurrent: false, skipRender: true });
 applySkillsMatrixToCollection(team, loadSkillsMatrix());
 
 refreshArchiveLibrary().finally(() => {
