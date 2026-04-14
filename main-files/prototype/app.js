@@ -3681,7 +3681,6 @@ function renderAssignmentManager() {
                     ? `<button type="button" class="secondary-button assignment-reset-button" data-reset-assignment="${assignment}">Reset</button>`
                     : ""}
                   <button type="button" class="secondary-button assignment-remove-button" data-remove-assignment="${assignment}">Delete</button>
-                  ${!isCustomAssignment ? `<span class="assignment-manager-fixed">Built-in</span>` : ""}
                 </div>
               </div>
             `;
@@ -9391,25 +9390,12 @@ function renderSkillsMatrix(filteredTeam = getSkillsMatrixTeam()) {
   });
 }
 
-function renderChart(filteredTeam) {
-  const groups = getGroupedBlocks();
-  const selectedAssignment = assignmentFilter.value;
-  const visiblePeople = filteredTeam.filter((person) => {
-    if (selectedAssignment === "all") return true;
-    return groups.some((group) =>
-      group.blockIndexes.some((blockIndex) => person.assignments[blockIndex]?.[0] === selectedAssignment)
-    );
-  });
-
-  if (!visiblePeople.length) {
-    chartRoot.innerHTML = `<div class="empty-state">No specialists match this filter.</div>`;
-    return;
-  }
-
+function renderSpreadsheetChartMarkup(visiblePeople, groups, options = {}) {
+  const { editable = true, totalColumnsOverride = null } = options;
   const stickyColumns = 5;
-  const totalColumns = stickyColumns + groups.length;
+  const totalColumns = totalColumnsOverride || stickyColumns + groups.length;
 
-  chartRoot.innerHTML = `
+  return `
     <div class="assignment-spreadsheet-wrap">
       <table class="assignment-spreadsheet">
         <thead>
@@ -9443,16 +9429,25 @@ function renderChart(filteredTeam) {
                   (hour) => `<option value="${hour}" ${hour === currentEndHour ? "selected" : ""}>${formatShiftHour(hour)}</option>`
                 )
                 .join("");
-              const isEditingShift = editingShiftPersonId === personId(person);
+              const isEditingShift = editable && editingShiftPersonId === personId(person);
               const rowCells = groups
                 .map((group) => {
                   const assignments = [...new Set(group.blockIndexes.map((blockIndex) => person.assignments[blockIndex]?.[0]).filter(Boolean))];
-                  const manualOptions = getManualAssignmentOptions(person);
+                  const manualOptions = editable ? getManualAssignmentOptions(person) : [];
                   const displayAssignment = assignments[0] || "Open";
                   const isMixed = assignments.length > 1;
                   const displayLabel = assignments.length ? assignments.join(" / ") : "Open";
                   const cellColor = assignmentColors[displayAssignment] || "#edf2f7";
                   const textColor = getReadableTextColor(cellColor);
+                  if (!editable) {
+                    return `
+                      <td class="spreadsheet-assignment-cell ${displayAssignment === "OOO/Sick/PTO" ? "out" : ""} ${isMixed ? "mixed" : ""}">
+                        <div class="spreadsheet-assignment-pill static" style="--assignment-cell:${cellColor}; --assignment-text:${textColor}" title="${displayLabel}">
+                          <span>${displayLabel}</span>
+                        </div>
+                      </td>
+                    `;
+                  }
                   const selectOptions = `
                     ${isMixed ? `<option value="" selected disabled>${displayLabel}</option>` : ""}
                     ${manualOptions
@@ -9483,7 +9478,7 @@ function renderChart(filteredTeam) {
               return `
                 <tr class="spreadsheet-row ${personIsOut(person) ? "is-out" : ""}">
                   <td class="sticky-col sticky-out spreadsheet-out-cell">
-                    <input type="checkbox" class="spreadsheet-out-toggle" data-person-id="${personId(person)}" ${personIsOut(person) ? "checked" : ""} aria-label="${person.name} out" />
+                    <input type="checkbox" class="spreadsheet-out-toggle" data-person-id="${personId(person)}" ${personIsOut(person) ? "checked" : ""} ${editable ? "" : "disabled"} aria-label="${person.name} out" />
                   </td>
                   <td class="sticky-col sticky-name spreadsheet-name-cell">
                     <div class="spreadsheet-name">${person.name}</div>
@@ -9491,7 +9486,11 @@ function renderChart(filteredTeam) {
                   <td class="sticky-col sticky-title spreadsheet-title-cell">${person.title}</td>
                   <td class="sticky-col sticky-manager spreadsheet-manager-cell">${person.manager}</td>
                   <td class="sticky-col sticky-schedule spreadsheet-schedule-cell">
-                    <button type="button" class="secondary-button spreadsheet-shift-button" data-person-id="${personId(person)}">${displayedSchedule}</button>
+                    ${
+                      editable
+                        ? `<button type="button" class="secondary-button spreadsheet-shift-button" data-person-id="${personId(person)}">${displayedSchedule}</button>`
+                        : `<span class="secondary-button spreadsheet-shift-button static">${displayedSchedule}</span>`
+                    }
                   </td>
                   ${rowCells}
                 </tr>
@@ -9542,6 +9541,24 @@ function renderChart(filteredTeam) {
       </table>
     </div>
   `;
+}
+
+function renderChart(filteredTeam) {
+  const groups = getGroupedBlocks();
+  const selectedAssignment = assignmentFilter.value;
+  const visiblePeople = filteredTeam.filter((person) => {
+    if (selectedAssignment === "all") return true;
+    return groups.some((group) =>
+      group.blockIndexes.some((blockIndex) => person.assignments[blockIndex]?.[0] === selectedAssignment)
+    );
+  });
+
+  if (!visiblePeople.length) {
+    chartRoot.innerHTML = `<div class="empty-state">No specialists match this filter.</div>`;
+    return;
+  }
+
+  chartRoot.innerHTML = renderSpreadsheetChartMarkup(visiblePeople, groups, { editable: true });
 
   chartRoot.querySelectorAll(".spreadsheet-out-toggle").forEach((checkbox) => {
     checkbox.addEventListener("change", () => {
@@ -9647,59 +9664,8 @@ function renderAgentCoverageChart(person) {
   agentCoverageSubtitle.textContent = `${teamLabel} assignments by time block across the day.`;
 
   const relevantTeam = team.filter((entry) => entry.teamGroup === person.teamGroup);
-  const blockData = getGroupedBlocks().map((group) => {
-    const counts = {};
-    relevantTeam.forEach((entry) => {
-      group.blockIndexes.forEach((blockIndex) => {
-        const [assignment] = entry.assignments[blockIndex];
-        if (!assignment) return;
-        counts[assignment] = (counts[assignment] || 0) + 1;
-      });
-    });
-    const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
-    return { block: group.label, counts, total };
-  });
-
-  const legendAssignments = [...new Set(blockData.flatMap(({ counts }) => Object.keys(counts)))];
-
-  agentCoverageChart.innerHTML = `
-    ${blockData
-      .map(({ block, counts, total }) => {
-        const segments = Object.entries(counts)
-          .sort((a, b) => b[1] - a[1])
-          .map(([assignment, count]) => {
-            const width = total ? (count / total) * 100 : 0;
-            const label = getAssignmentChartLabel(assignment, count, width);
-            return `
-              <div class="chart-segment" style="width:${width}%; background:${assignmentColors[assignment] || "#6b7280"}">
-                <span>${label}</span>
-              </div>
-            `;
-          })
-          .join("");
-
-        return `
-          <div class="chart-row">
-            <div class="chart-label-button static">${block}</div>
-            <div class="chart-track">${segments}</div>
-            <div class="chart-total">${total} assigned</div>
-          </div>
-        `;
-      })
-      .join("")}
-    <div class="chart-legend">
-      ${legendAssignments
-        .map(
-          (assignment) => `
-            <div class="legend-chip">
-              <span class="legend-swatch" style="background:${assignmentColors[assignment] || "#6b7280"}"></span>
-              <span>${assignment}</span>
-            </div>
-          `
-        )
-        .join("")}
-    </div>
-  `;
+  const groups = getGroupedBlocks();
+  agentCoverageChart.innerHTML = renderSpreadsheetChartMarkup(relevantTeam, groups, { editable: false });
 }
 
 function renderBoard(filteredTeam) {
