@@ -10208,7 +10208,7 @@ function renderAgentCoverageChart(person) {
 
   const relevantTeam = team.filter((entry) => entry.teamGroup === person.teamGroup);
   const groups = getGroupedBlocks();
-  agentCoverageChart.innerHTML = renderSpreadsheetChartMarkup(relevantTeam, groups, { editable: false });
+  agentCoverageChart.innerHTML = renderSpreadsheetChartMarkup(relevantTeam, groups, { editable: false, compactPersonColumn: true });
 }
 
 function renderBoard(filteredTeam) {
