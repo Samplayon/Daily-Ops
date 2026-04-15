@@ -3388,10 +3388,14 @@ restoreAppViewState();
 
 try {
   populatePortalAgentSelect();
-  if (selectedAgentId && agentSelect && [...agentSelect.options].some((option) => option.value === selectedAgentId)) {
+  const hasSelectedPortalOption =
+    selectedAgentId && agentSelect && [...agentSelect.options].some((option) => option.value === selectedAgentId);
+  if (hasSelectedPortalOption) {
     agentSelect.value = selectedAgentId;
+  } else if (selectedAgentId) {
+    selectedAgentId = "";
   }
-  if (currentView === "agent" && !selectedAgentId) {
+  if (currentView === "agent" && !getPersonById(selectedAgentId)) {
     currentView = "portal";
   }
   saveAppViewState();
@@ -6772,6 +6776,9 @@ function applyAgentPreferences() {
 }
 
 function setView(nextView) {
+  if (nextView === "agent" && !getPersonById(selectedAgentId)) {
+    nextView = "portal";
+  }
   currentView = nextView;
   saveAppViewState();
   portalScreen.classList.toggle("hidden", nextView !== "portal");
@@ -10512,6 +10519,10 @@ function renderAgentBoard() {
   const person = getPersonById(selectedAgentId);
   const agentWeeklySchedule = document.getElementById("agent-weekly-schedule");
   if (!person) {
+    if (currentView === "agent") {
+      setView("portal");
+      return;
+    }
     if (agentWeeklySchedule) {
       agentWeeklySchedule.innerHTML = `<div class="empty-state">Choose a name to see the week.</div>`;
     }
@@ -10662,6 +10673,16 @@ function renderAgentBoard() {
 function render() {
   refreshAssignmentCollections();
   refreshAssignmentControls();
+  populatePortalAgentSelect();
+  if (selectedAgentId && agentSelect && [...agentSelect.options].some((option) => option.value === selectedAgentId)) {
+    agentSelect.value = selectedAgentId;
+  } else if (selectedAgentId) {
+    selectedAgentId = "";
+  }
+  if (currentView === "agent" && !getPersonById(selectedAgentId)) {
+    currentView = "portal";
+  }
+  saveAppViewState();
   setView(currentView);
   populateManagerFilter();
   populatePersonFilter();
