@@ -3954,6 +3954,20 @@ function saveRoster(entries) {
   return cloneData(rosterState);
 }
 
+function resolveRosterEntries(primaryEntries, fallbackEntries = null) {
+  const primary = normalizeRosterEntries(primaryEntries);
+  if (primary.length) {
+    return primary;
+  }
+
+  const fallback = fallbackEntries ? normalizeRosterEntries(fallbackEntries) : [];
+  if (fallback.length) {
+    return fallback;
+  }
+
+  return defaultRoster();
+}
+
 function buildInitialTeamFromRosterEntries(entries) {
   const normalized = normalizeRosterEntries(entries);
   return normalized.map((entry) => {
@@ -4117,14 +4131,16 @@ async function syncSkillsMatrixFromServer() {
     if (!response.ok) {
       throw new Error(payload.details || payload.error || `Failed to load skills (${response.status})`);
     }
-    applyRosterEntries(payload?.roster || loadRoster(), { preserveCurrent: false, skipRender: true });
+
+    const rosterToApply = resolveRosterEntries(payload?.roster, loadRoster());
+    applyRosterEntries(rosterToApply, { preserveCurrent: false, skipRender: true });
     saveSkillsMatrix(payload?.skills || defaultSkillsMatrix());
     applySkillsMatrixToCollection(team, skillsMatrixState);
     render();
   } catch {
-    applyRosterEntries(loadRoster(), { preserveCurrent: false, skipRender: true });
+    applyRosterEntries(resolveRosterEntries(loadRoster(), defaultRoster()), { preserveCurrent: false, skipRender: true });
     refreshAdminCollections();
-  applySkillsMatrixToCollection(team, loadSkillsMatrix());
+    applySkillsMatrixToCollection(team, loadSkillsMatrix());
     render();
   }
 }
@@ -4144,8 +4160,8 @@ async function persistSkillsMatrix(skillsMatrix) {
   if (!response.ok) {
     throw new Error(payload.details || payload.error || `Failed to save skills (${response.status})`);
   }
-  if (payload?.roster) {
-    saveRoster(payload.roster);
+  if (Object.prototype.hasOwnProperty.call(payload || {}, "roster")) {
+    saveRoster(resolveRosterEntries(payload.roster, loadRoster()));
   }
   return saveSkillsMatrix(payload?.skills || skillsMatrix);
 }
