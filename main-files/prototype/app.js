@@ -2655,6 +2655,7 @@ const specialistLogsFallbackStorageKey = "daily-ops-specialist-logs-v1";
 const adminPasswordsStorageKey = "daily-ops-admin-passwords-v1";
 const skillsMatrixStorageKey = "daily-ops-skills-matrix-v1";
 const rosterStorageKey = "daily-ops-roster-v1";
+const appViewStateStorageKey = "daily-ops-view-state-v1";
 const shiftTimeOptions = Array.from({ length: 17 }, (_, index) => 8 + index);
 let auditLogEntries = [];
 let auditLogLoaded = false;
@@ -2673,6 +2674,43 @@ let adminPasswordSaveState = {
   tone: "",
 };
 let latestReshuffleReport = loadReshuffleReport();
+
+function loadAppViewState() {
+  try {
+    const raw = window.localStorage.getItem(appViewStateStorageKey);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveAppViewState() {
+  try {
+    window.localStorage.setItem(
+      appViewStateStorageKey,
+      JSON.stringify({
+        currentView,
+        selectedAgentId,
+        currentAdminProfileId,
+      })
+    );
+  } catch {}
+}
+
+function restoreAppViewState() {
+  const state = loadAppViewState();
+  if (state && typeof state === "object") {
+    if (typeof state.selectedAgentId === "string") {
+      selectedAgentId = state.selectedAgentId;
+    }
+    if (typeof state.currentAdminProfileId === "string" && state.currentAdminProfileId) {
+      currentAdminProfileId = state.currentAdminProfileId;
+    }
+    if (state.currentView === "admin" || state.currentView === "agent" || state.currentView === "portal") {
+      currentView = state.currentView;
+    }
+  }
+}
 
 function getDateKeyForTimezone(date = new Date(), timeZone = "America/New_York") {
   return new Intl.DateTimeFormat("en-CA", {
@@ -3341,12 +3379,22 @@ function handleAdminLogin() {
 function handleAgentOpen() {
   if (!agentSelect.value) return;
   selectedAgentId = agentSelect.value;
+  saveAppViewState();
   setView("agent");
   render();
 }
 
+restoreAppViewState();
+
 try {
   populatePortalAgentSelect();
+  if (selectedAgentId && agentSelect && [...agentSelect.options].some((option) => option.value === selectedAgentId)) {
+    agentSelect.value = selectedAgentId;
+  }
+  if (currentView === "agent" && !selectedAgentId) {
+    currentView = "portal";
+  }
+  saveAppViewState();
 } catch (error) {
   console.error("Portal agent select bootstrap failed", error);
 }
@@ -3958,6 +4006,7 @@ function applyRosterEntries(entries, { preserveCurrent = true, skipRender = fals
     selectedAgentId = "";
     if (currentView === "agent") currentView = "portal";
   }
+  saveAppViewState();
   if (!skipRender) render();
   return normalized;
 }
@@ -6724,6 +6773,7 @@ function applyAgentPreferences() {
 
 function setView(nextView) {
   currentView = nextView;
+  saveAppViewState();
   portalScreen.classList.toggle("hidden", nextView !== "portal");
   adminShell.classList.toggle("hidden", nextView !== "admin");
   agentShell.classList.toggle("hidden", nextView !== "agent");
