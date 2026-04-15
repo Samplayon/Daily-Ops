@@ -2644,6 +2644,21 @@ body.assignment-graph-open::after {
   background: #f6f8f9;
 }
 
+.spreadsheet-assignment-select:disabled,
+.spreadsheet-shift-button:disabled,
+.spreadsheet-out-toggle:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.spreadsheet-assignment-select:disabled {
+  -webkit-text-fill-color: var(--assignment-text);
+}
+
+.spreadsheet-shift-button:disabled {
+  color: var(--ink);
+}
+
 .spreadsheet-assignment-cell.mixed .spreadsheet-assignment-pill {
   background: linear-gradient(135deg, rgba(0, 201, 210, 0.12), rgba(255, 255, 255, 0.96));
 }

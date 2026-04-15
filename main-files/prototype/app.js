@@ -9920,21 +9920,12 @@ function renderSpreadsheetChartMarkup(visiblePeople, groups, options = {}) {
               const rowCells = groups
                 .map((group) => {
                   const assignments = [...new Set(group.blockIndexes.map((blockIndex) => person.assignments[blockIndex]?.[0]).filter(Boolean))];
-                  const manualOptions = editable ? getManualAssignmentOptions(person) : [];
+                  const manualOptions = getManualAssignmentOptions(person);
                   const displayAssignment = assignments[0] || "Open";
                   const isMixed = assignments.length > 1;
                   const displayLabel = assignments.length ? assignments.join(" / ") : "Open";
                   const cellColor = assignmentColors[displayAssignment] || "#edf2f7";
                   const textColor = getReadableTextColor(cellColor);
-                  if (!editable) {
-                    return `
-                      <td class="spreadsheet-assignment-cell ${isOutStatusAssignment(displayAssignment) ? "out" : ""} ${isMixed ? "mixed" : ""}">
-                        <div class="spreadsheet-assignment-pill static" style="--assignment-cell:${cellColor}; --assignment-text:${textColor}" title="${displayLabel}">
-                          <span>${displayLabel}</span>
-                        </div>
-                      </td>
-                    `;
-                  }
                   const selectOptions = `
                     ${isMixed ? `<option value="" selected disabled>${displayLabel}</option>` : ""}
                     ${manualOptions
@@ -9953,6 +9944,7 @@ function renderSpreadsheetChartMarkup(visiblePeople, groups, options = {}) {
                           data-person-id="${personId(person)}"
                           data-group-start="${group.startIndex}"
                           title="${displayLabel}"
+                          ${editable ? "" : "disabled"}
                         >
                           ${selectOptions}
                         </select>
@@ -9988,11 +9980,7 @@ function renderSpreadsheetChartMarkup(visiblePeople, groups, options = {}) {
                   </td>
                   ${personColumnMarkup}
                   <td class="sticky-col sticky-schedule spreadsheet-schedule-cell">
-                    ${
-                      editable
-                        ? `<button type="button" class="secondary-button spreadsheet-shift-button" data-person-id="${personId(person)}">${displayedSchedule}</button>`
-                        : `<span class="secondary-button spreadsheet-shift-button static">${displayedSchedule}</span>`
-                    }
+                    <button type="button" class="secondary-button spreadsheet-shift-button" data-person-id="${personId(person)}" ${editable ? "" : "disabled"}>${displayedSchedule}</button>
                   </td>
                   ${rowCells}
                 </tr>
