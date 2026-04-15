@@ -1588,8 +1588,24 @@ body.dark-mode .rules-manual-summary {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.assignment-manager-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .assignment-manager-input {
   min-width: 0;
+  flex: 1 1 auto;
+}
+
+.assignment-manager-color-input {
+  width: 56px;
+  min-width: 56px;
+  height: 52px;
+  padding: 4px;
 }
 
 .assignment-manager-actions {

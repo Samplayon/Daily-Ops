@@ -8,6 +8,7 @@ module.exports = async function handler(req, res) {
         ok: true,
         assignments: payload.assignments || [],
         hiddenBuiltIns: payload.hiddenBuiltIns || [],
+        colors: payload.colors || {},
       });
     }
 
@@ -16,11 +17,13 @@ module.exports = async function handler(req, res) {
       const payload = await writeCustomAssignments({
         assignments: data?.assignments || [],
         hiddenBuiltIns: data?.hiddenBuiltIns || [],
+        colors: data?.colors || {},
       });
       return sendJson(res, {
         ok: true,
         assignments: payload.assignments || [],
         hiddenBuiltIns: payload.hiddenBuiltIns || [],
+        colors: payload.colors || {},
       });
     }
 

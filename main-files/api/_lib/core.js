@@ -357,6 +357,18 @@ function normalizeHiddenBuiltInAssignments(payload) {
     : defaultHiddenBuiltInAssignments();
 }
 
+function normalizeAssignmentColors(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(payload)
+      .map(([key, value]) => [String(key || "").trim(), String(value || "").trim()])
+      .filter(([key, value]) => key && /^#[0-9a-f]{6}$/i.test(value))
+  );
+}
+
 function normalizeAdminPasswords(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return defaultAdminPasswords();
@@ -507,16 +519,19 @@ async function readCustomAssignments() {
       return {
         assignments: normalizeCustomAssignments(parsed),
         hiddenBuiltIns: defaultHiddenBuiltInAssignments(),
+        colors: {},
       };
     }
     return {
       assignments: normalizeCustomAssignments(parsed?.assignments || []),
       hiddenBuiltIns: normalizeHiddenBuiltInAssignments(parsed?.hiddenBuiltIns || []),
+      colors: normalizeAssignmentColors(parsed?.colors || {}),
     };
   } catch {
     return {
       assignments: defaultCustomAssignments(),
       hiddenBuiltIns: defaultHiddenBuiltInAssignments(),
+      colors: {},
     };
   }
 }
@@ -527,6 +542,7 @@ async function writeCustomAssignments(payload) {
       Array.isArray(payload) ? payload : payload?.assignments || []
     ),
     hiddenBuiltIns: normalizeHiddenBuiltInAssignments(payload?.hiddenBuiltIns || []),
+    colors: normalizeAssignmentColors(payload?.colors || {}),
   };
   await uploadObject(
     CUSTOM_ASSIGNMENTS_OBJECT,
