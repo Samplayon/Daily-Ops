@@ -9872,21 +9872,27 @@ function renderSkillsMatrix(filteredTeam = getSkillsMatrixTeam()) {
 }
 
 function renderSpreadsheetChartMarkup(visiblePeople, groups, options = {}) {
-  const { editable = true, totalColumnsOverride = null } = options;
-  const stickyColumns = 5;
+  const { editable = true, totalColumnsOverride = null, compactPersonColumn = false } = options;
+  const stickyColumns = compactPersonColumn ? 3 : 5;
   const totalColumns = totalColumnsOverride || stickyColumns + groups.length;
 
   return `
     <div class="assignment-spreadsheet-wrap">
-      <table class="assignment-spreadsheet">
+      <table class="assignment-spreadsheet ${compactPersonColumn ? "condensed-person-column" : ""}">
         <thead>
           <tr>
             <th class="sticky-col sticky-out">Out</th>
-            <th class="sticky-col sticky-name">Name</th>
-            <th class="sticky-col sticky-title">Title</th>
-            <th class="sticky-col sticky-manager">Manager</th>
+            ${
+              compactPersonColumn
+                ? `<th class="sticky-col sticky-person">Person</th>`
+                : `
+                  <th class="sticky-col sticky-name">Name</th>
+                  <th class="sticky-col sticky-title">Title</th>
+                  <th class="sticky-col sticky-manager">Manager</th>
+                `
+            }
             <th class="sticky-col sticky-schedule">Schedule</th>
-            ${groups.map((group) => `<th class="time-group-col">${group.label}</th>`).join("")}
+            ${groups.map((group) => `<th class="time-group-col" data-group-start="${group.startIndex}">${group.label}</th>`).join("")}
           </tr>
         </thead>
         <tbody>
@@ -9956,6 +9962,22 @@ function renderSpreadsheetChartMarkup(visiblePeople, groups, options = {}) {
                 })
                 .join("");
 
+              const personColumnMarkup = compactPersonColumn
+                ? `
+                  <td class="sticky-col sticky-person spreadsheet-person-cell">
+                    <div class="spreadsheet-name">${person.name}</div>
+                    <div class="spreadsheet-person-meta">${person.title}</div>
+                    <div class="spreadsheet-person-meta">${person.manager}</div>
+                  </td>
+                `
+                : `
+                  <td class="sticky-col sticky-name spreadsheet-name-cell">
+                    <div class="spreadsheet-name">${person.name}</div>
+                  </td>
+                  <td class="sticky-col sticky-title spreadsheet-title-cell">${person.title}</td>
+                  <td class="sticky-col sticky-manager spreadsheet-manager-cell">${person.manager}</td>
+                `;
+
               return `
                 <tr class="spreadsheet-row ${personIsOut(person) ? "is-out" : ""}">
                   <td class="sticky-col sticky-out spreadsheet-out-cell">
@@ -9964,11 +9986,7 @@ function renderSpreadsheetChartMarkup(visiblePeople, groups, options = {}) {
                       ${editable && personIsOut(person) ? `<select class="spreadsheet-out-status-select" data-person-id="${personId(person)}">${OUT_STATUS_ASSIGNMENTS.map((status) => `<option value="${status}" ${normalizeOutStatusAssignment(displayedSchedule) === status || normalizeOutStatusAssignment(person.assignments[0]?.[0]) === status ? "selected" : ""}>${status}</option>`).join("")}</select>` : ""}
                     </div>
                   </td>
-                  <td class="sticky-col sticky-name spreadsheet-name-cell">
-                    <div class="spreadsheet-name">${person.name}</div>
-                  </td>
-                  <td class="sticky-col sticky-title spreadsheet-title-cell">${person.title}</td>
-                  <td class="sticky-col sticky-manager spreadsheet-manager-cell">${person.manager}</td>
+                  ${personColumnMarkup}
                   <td class="sticky-col sticky-schedule spreadsheet-schedule-cell">
                     ${
                       editable
@@ -10027,6 +10045,42 @@ function renderSpreadsheetChartMarkup(visiblePeople, groups, options = {}) {
   `;
 }
 
+function renderAssignmentGraphJump(groups) {
+  if (!boardJumpRoot) return;
+  if (!groups.length) {
+    boardJumpRoot.innerHTML = "";
+    boardJumpRoot.classList.remove("is-visible");
+    return;
+  }
+
+  boardJumpRoot.innerHTML = `
+    <label class="board-jump-control">
+      <span>Jump to time block</span>
+      <select id="assignment-graph-jump-select" class="portal-input">
+        ${groups.map((group) => `<option value="${group.startIndex}">${group.label}</option>`).join("")}
+      </select>
+    </label>
+    <button id="assignment-graph-jump-button" type="button" class="secondary-button board-jump-button">Go</button>
+  `;
+  boardJumpRoot.classList.add("is-visible");
+
+  const jumpSelect = document.getElementById("assignment-graph-jump-select");
+  const jumpButton = document.getElementById("assignment-graph-jump-button");
+  const jumpToTimeBlock = () => {
+    if (!jumpSelect || !chartRoot) return;
+    const wrap = chartRoot.querySelector(".assignment-spreadsheet-wrap");
+    const target = chartRoot.querySelector(`th.time-group-col[data-group-start="${jumpSelect.value}"]`);
+    const frozenBoundaryCell = chartRoot.querySelector(".assignment-spreadsheet.condensed-person-column th.sticky-schedule");
+    if (!wrap || !target) return;
+    const frozenBoundary = frozenBoundaryCell ? frozenBoundaryCell.offsetLeft + frozenBoundaryCell.offsetWidth : 0;
+    const nextLeft = Math.max(0, target.offsetLeft - frozenBoundary - 12);
+    wrap.scrollTo({ left: nextLeft, behavior: "smooth" });
+  };
+
+  jumpButton?.addEventListener("click", jumpToTimeBlock);
+  jumpSelect?.addEventListener("change", jumpToTimeBlock);
+}
+
 function renderChart(filteredTeam) {
   const groups = getGroupedBlocks();
   const selectedAssignment = assignmentFilter.value;
@@ -10038,11 +10092,16 @@ function renderChart(filteredTeam) {
   });
 
   if (!visiblePeople.length) {
+    if (boardJumpRoot) {
+      boardJumpRoot.innerHTML = "";
+      boardJumpRoot.classList.remove("is-visible");
+    }
     chartRoot.innerHTML = `<div class="empty-state">No specialists match this filter.</div>`;
     return;
   }
 
-  chartRoot.innerHTML = renderSpreadsheetChartMarkup(visiblePeople, groups, { editable: true });
+  chartRoot.innerHTML = renderSpreadsheetChartMarkup(visiblePeople, groups, { editable: true, compactPersonColumn: true });
+  renderAssignmentGraphJump(groups);
 
   chartRoot.querySelectorAll(".spreadsheet-out-toggle").forEach((checkbox) => {
     checkbox.addEventListener("change", () => {
