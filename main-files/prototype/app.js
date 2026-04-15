@@ -3395,7 +3395,7 @@ try {
   } else if (selectedAgentId) {
     selectedAgentId = "";
   }
-  if (currentView === "agent" && !getPersonById(selectedAgentId)) {
+  if (currentView === "agent" && !recoverSelectedAgentId()) {
     currentView = "portal";
   }
   saveAppViewState();
@@ -5695,6 +5695,23 @@ function personId(person) {
 
 function getPersonById(id) {
   return team.find((person) => personId(person) === id);
+}
+
+function recoverSelectedAgentId() {
+  const currentPerson = getPersonById(selectedAgentId);
+  if (currentPerson) {
+    return currentPerson;
+  }
+  const fallbackPerson = team[0] || null;
+  if (fallbackPerson) {
+    selectedAgentId = personId(fallbackPerson);
+    if (agentSelect && [...agentSelect.options].some((option) => option.value === selectedAgentId)) {
+      agentSelect.value = selectedAgentId;
+    }
+    return fallbackPerson;
+  }
+  selectedAgentId = "";
+  return null;
 }
 
 function getAgentPreferenceKey(agentId) {
@@ -10516,7 +10533,7 @@ function renderShiftEditor() {
 }
 
 function renderAgentBoard() {
-  const person = getPersonById(selectedAgentId);
+  const person = currentView === "agent" ? recoverSelectedAgentId() : getPersonById(selectedAgentId);
   const agentWeeklySchedule = document.getElementById("agent-weekly-schedule");
   if (!person) {
     if (currentView === "agent") {
@@ -10679,7 +10696,7 @@ function render() {
   } else if (selectedAgentId) {
     selectedAgentId = "";
   }
-  if (currentView === "agent" && !getPersonById(selectedAgentId)) {
+  if (currentView === "agent" && !recoverSelectedAgentId()) {
     currentView = "portal";
   }
   saveAppViewState();
