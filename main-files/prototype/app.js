@@ -5693,6 +5693,15 @@ function personId(person) {
   return normalizeText(person.name).replace(/ /g, "-");
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function getPersonById(id) {
   return team.find((person) => personId(person) === id);
 }
