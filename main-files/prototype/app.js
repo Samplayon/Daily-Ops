@@ -10605,6 +10605,66 @@ function renderShiftEditor() {
           `
         )
         .join("");
+      const baseWeekdayWindow = parseScheduleWindow(permanentProfile.baseSchedule) || currentShiftWindow;
+      const weekdayScheduleMarkup = weekDayDefinitions
+        .map((day) => {
+          const savedDaySchedule = permanentProfile.daySchedules?.[day.key] || "";
+          const dayWindow = parseScheduleWindow(savedDaySchedule || permanentProfile.baseSchedule || person.schedule) || baseWeekdayWindow;
+          const dayStartHour = Math.max(8, Math.floor(dayWindow.normalizedStart));
+          const dayEndHour = Math.min(24, Math.ceil(dayWindow.normalizedEnd));
+          const isEnabled = Boolean(savedDaySchedule);
+          const dayStartOptions = shiftTimeOptions
+            .map(
+              (hour) =>
+                `<option value="${hour}" ${hour === dayStartHour ? "selected" : ""}>${formatShiftHour(hour)}</option>`
+            )
+            .join("");
+          const dayEndOptions = shiftTimeOptions
+            .filter((hour) => hour > dayStartHour)
+            .map(
+              (hour) =>
+                `<option value="${hour}" ${hour === dayEndHour ? "selected" : ""}>${formatShiftHour(hour)}</option>`
+            )
+            .join("");
+
+          return `
+            <div class="weekday-schedule-row ${isEnabled ? "is-enabled" : ""}" data-person-id="${personId(person)}" data-day-key="${day.key}">
+              <label class="weekday-schedule-toggle">
+                <input
+                  type="checkbox"
+                  class="weekday-schedule-checkbox"
+                  data-person-id="${personId(person)}"
+                  data-day-key="${day.key}"
+                  ${isEnabled ? "checked" : ""}
+                />
+                <span>${day.label}</span>
+              </label>
+              <label>
+                <span>Start</span>
+                <select
+                  class="shift-edit-select weekday-shift-start"
+                  data-person-id="${personId(person)}"
+                  data-day-key="${day.key}"
+                  ${isEnabled ? "" : "disabled"}
+                >
+                  ${dayStartOptions}
+                </select>
+              </label>
+              <label>
+                <span>End</span>
+                <select
+                  class="shift-edit-select weekday-shift-end"
+                  data-person-id="${personId(person)}"
+                  data-day-key="${day.key}"
+                  ${isEnabled ? "" : "disabled"}
+                >
+                  ${dayEndOptions}
+                </select>
+              </label>
+            </div>
+          `;
+        })
+        .join("");
 
       return `
         <article class="shift-editor-card">
@@ -10613,6 +10673,7 @@ function renderShiftEditor() {
             <div class="person-meta">${person.title} • ${person.manager}</div>
             <div class="schedule-badge">Current shift: ${person.schedule}</div>
             <div class="person-meta">Workdays: ${formatWorkdaysSummary(permanentProfile.workdays)}</div>
+            <div class="person-meta">Weekday scheduler: ${Object.keys(permanentProfile.daySchedules || {}).length ? formatPermanentScheduleSummary({ schedule: "", daySchedules: permanentProfile.daySchedules }) : "Default shift only"}</div>
           </div>
           <div class="shift-edit-panel shift-editor-panel">
             <div class="shift-edit-grid">
@@ -10635,6 +10696,13 @@ function renderShiftEditor() {
                 ${workdayMarkup}
               </div>
               <div class="shift-workdays-note">These days apply when you choose Make this permanent. Today-only changes still only affect today.</div>
+            </div>
+            <div class="shift-weekday-schedules-block">
+              <div class="shift-workdays-label">Weekday Scheduler</div>
+              <div class="shift-workdays-note">Set permanent hours for specific weekdays. Leave a day unchecked to use the default shift above.</div>
+              <div class="shift-weekday-schedules-grid">
+                ${weekdayScheduleMarkup}
+              </div>
             </div>
             <div class="shift-edit-scope">
               <label class="shift-scope-option">
@@ -10675,6 +10743,44 @@ function renderShiftEditor() {
     });
   });
 
+  shiftEditorList.querySelectorAll(".weekday-shift-start").forEach((select) => {
+    select.addEventListener("change", () => {
+      const personKey = select.dataset.personId || "";
+      const dayKey = select.dataset.dayKey || "";
+      const endSelect = shiftEditorList.querySelector(`.weekday-shift-end[data-person-id="${personKey}"][data-day-key="${dayKey}"]`);
+      if (!endSelect) return;
+      const startValue = Number(select.value);
+      const previousEnd = Number(endSelect.value || startValue + 1);
+      endSelect.innerHTML = shiftTimeOptions
+        .filter((hour) => hour > startValue)
+        .map(
+          (hour) =>
+            `<option value="${hour}" ${hour === previousEnd ? "selected" : ""}>${formatShiftHour(hour)}</option>`
+        )
+        .join("");
+      if (!endSelect.value) {
+        endSelect.value = String(Math.min(24, startValue + 1));
+      }
+    });
+  });
+
+  shiftEditorList.querySelectorAll(".weekday-schedule-checkbox").forEach((checkbox) => {
+    const syncWeekdayRow = () => {
+      const personKey = checkbox.dataset.personId || "";
+      const dayKey = checkbox.dataset.dayKey || "";
+      const isEnabled = checkbox.checked;
+      const row = shiftEditorList.querySelector(`.weekday-schedule-row[data-person-id="${personKey}"][data-day-key="${dayKey}"]`);
+      const startSelect = shiftEditorList.querySelector(`.weekday-shift-start[data-person-id="${personKey}"][data-day-key="${dayKey}"]`);
+      const endSelect = shiftEditorList.querySelector(`.weekday-shift-end[data-person-id="${personKey}"][data-day-key="${dayKey}"]`);
+      row?.classList.toggle("is-enabled", isEnabled);
+      if (startSelect) startSelect.disabled = !isEnabled;
+      if (endSelect) endSelect.disabled = !isEnabled;
+    };
+
+    checkbox.addEventListener("change", syncWeekdayRow);
+    syncWeekdayRow();
+  });
+
   shiftEditorList.querySelectorAll(".shift-save-button").forEach((button) => {
     button.addEventListener("click", () => {
       const person = getPersonById(button.dataset.personId || "");
@@ -10699,7 +10805,33 @@ function renderShiftEditor() {
         shiftEditorList.querySelectorAll(`.shift-workday-checkbox[data-person-id="${button.dataset.personId}"]:checked`)
       ).map((input) => input.value);
 
-      saveShiftChange(person, formatScheduleValue(startHour, endHour), modeInput.value, selectedWorkdays);
+      const selectedDaySchedules = {};
+      shiftEditorList
+        .querySelectorAll(`.weekday-schedule-checkbox[data-person-id="${button.dataset.personId}"]:checked`)
+        .forEach((input) => {
+          const dayKey = input.dataset.dayKey || "";
+          const startSelect = shiftEditorList.querySelector(
+            `.weekday-shift-start[data-person-id="${button.dataset.personId}"][data-day-key="${dayKey}"]`
+          );
+          const endSelect = shiftEditorList.querySelector(
+            `.weekday-shift-end[data-person-id="${button.dataset.personId}"][data-day-key="${dayKey}"]`
+          );
+          if (!startSelect || !endSelect) return;
+
+          const weekdayStartHour = Number(startSelect.value);
+          const weekdayEndHour = Number(endSelect.value);
+          if (!Number.isFinite(weekdayStartHour) || !Number.isFinite(weekdayEndHour) || weekdayEndHour <= weekdayStartHour) return;
+
+          selectedDaySchedules[dayKey] = formatScheduleValue(weekdayStartHour, weekdayEndHour);
+        });
+
+      saveShiftChange(
+        person,
+        formatScheduleValue(startHour, endHour),
+        modeInput.value,
+        selectedWorkdays,
+        modeInput.value === "permanent" ? selectedDaySchedules : null
+      );
       render();
     });
   });
