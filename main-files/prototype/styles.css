@@ -2225,6 +2225,15 @@ body.dark-mode .rules-manual-summary {
   align-items: center;
 }
 
+.assignment-timeblock-panel {
+  margin-top: 4px;
+}
+
+.assignment-timeblock-graph {
+  display: grid;
+  gap: 14px;
+}
+
 .assignment-graph-actions {
   display: flex;
   justify-content: flex-end;
@@ -2276,7 +2285,8 @@ body.assignment-graph-open::after {
 
 #assignment-graph-panel.is-expanded .panel-header,
 #assignment-graph-panel.is-expanded .assistant-compact-card,
-#assignment-graph-panel.is-expanded .panel-filters {
+#assignment-graph-panel.is-expanded .panel-filters,
+#assignment-graph-panel.is-expanded #assignment-timeblock-panel {
   display: none;
 }
 
@@ -2374,6 +2384,18 @@ body.assignment-graph-open::after {
   background: rgba(28, 36, 48, 0.06);
   overflow: hidden;
   display: flex;
+}
+
+.chart-track-empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.chart-empty-label {
+  padding: 0 20px;
+  text-align: center;
 }
 
 .chart-segment {

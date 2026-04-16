@@ -2436,6 +2436,10 @@ const showOutOnly = document.getElementById("show-out-only");
 const outOnlyCard = document.getElementById("out-only-card");
 const outOnlyNames = document.getElementById("out-only-names");
 const chartRoot = document.getElementById("assignment-chart");
+const assignmentTimeBlockPanel = document.getElementById("assignment-timeblock-panel");
+const assignmentTimeBlockDetails = document.getElementById("assignment-timeblock-details");
+const assignmentTimeBlockSummaryAction = document.getElementById("assignment-timeblock-summary-action");
+const assignmentTimeBlockGraphRoot = document.getElementById("assignment-timeblock-graph");
 const assignmentGraphPanel = document.getElementById("assignment-graph-panel");
 const assignmentGraphExpandButton = document.getElementById("assignment-graph-expand");
 const boardJumpRoot = document.getElementById("board-jump");
@@ -10180,6 +10184,78 @@ function renderSpreadsheetChartMarkup(visiblePeople, groups, options = {}) {
   `;
 }
 
+
+function scrollAssignmentGraphToGroup(groupStart) {
+  if (!chartRoot) return;
+  const wrap = chartRoot.querySelector(".assignment-spreadsheet-wrap");
+  const target = chartRoot.querySelector(`th.time-group-col[data-group-start="${groupStart}"]`);
+  const frozenBoundaryCell = chartRoot.querySelector(".assignment-spreadsheet.condensed-person-column th.sticky-schedule");
+  if (!wrap || !target) return;
+  const frozenBoundary = frozenBoundaryCell ? frozenBoundaryCell.offsetLeft + frozenBoundaryCell.offsetWidth : 0;
+  const nextLeft = Math.max(0, target.offsetLeft - frozenBoundary - 12);
+  wrap.scrollTo({ left: nextLeft, behavior: "smooth" });
+}
+
+function renderTimeBlockAssignmentGraph(filteredTeam, groups, selectedAssignment) {
+  if (!assignmentTimeBlockGraphRoot) return;
+
+  const rows = groups
+    .map((group) => {
+      const counts = {};
+      filteredTeam.forEach((person) => {
+        const groupAssignments = group.blockIndexes
+          .map((blockIndex) => person.assignments[blockIndex]?.[0])
+          .filter(Boolean)
+          .filter((assignment) => selectedAssignment === "all" || assignment === selectedAssignment);
+
+        groupAssignments.forEach((assignment) => {
+          counts[assignment] = (counts[assignment] || 0) + 1;
+        });
+      });
+
+      const entries = Object.entries(counts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      const total = entries.reduce((sum, [, count]) => sum + count, 0);
+      if (!entries.length) {
+        return `
+          <div class="chart-row">
+            <button type="button" class="chart-label-button" data-group-start="${group.startIndex}">${group.label}</button>
+            <div class="chart-track chart-track-empty"><div class="chart-empty-label">No assignments in this block</div></div>
+            <div class="chart-total">0 assigned</div>
+          </div>
+        `;
+      }
+
+      const segments = entries
+        .map(([assignment, count]) => {
+          const width = (count / total) * 100;
+          const background = assignmentColors[assignment] || "#edf2f7";
+          const color = getReadableTextColor(background);
+          return `
+            <div class="chart-segment" style="flex:${count} 1 0; background:${background}; color:${color};" title="${getAssignmentDisplayLabel(assignment)} (${count})">
+              <span>${getAssignmentChartLabel(assignment, count, width)}</span>
+            </div>
+          `;
+        })
+        .join("");
+
+      return `
+        <div class="chart-row">
+          <button type="button" class="chart-label-button" data-group-start="${group.startIndex}">${group.label}</button>
+          <div class="chart-track">${segments}</div>
+          <div class="chart-total">${total} assigned</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  assignmentTimeBlockGraphRoot.innerHTML = rows || `<div class="empty-state">No assignments match this filter.</div>`;
+  assignmentTimeBlockGraphRoot.querySelectorAll(".chart-label-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      scrollAssignmentGraphToGroup(button.dataset.groupStart || "");
+    });
+  });
+}
+
 function renderAssignmentGraphJump(groups) {
   if (!boardJumpRoot) return;
   if (!groups.length) {
@@ -10202,14 +10278,8 @@ function renderAssignmentGraphJump(groups) {
   const jumpSelect = document.getElementById("assignment-graph-jump-select");
   const jumpButton = document.getElementById("assignment-graph-jump-button");
   const jumpToTimeBlock = () => {
-    if (!jumpSelect || !chartRoot) return;
-    const wrap = chartRoot.querySelector(".assignment-spreadsheet-wrap");
-    const target = chartRoot.querySelector(`th.time-group-col[data-group-start="${jumpSelect.value}"]`);
-    const frozenBoundaryCell = chartRoot.querySelector(".assignment-spreadsheet.condensed-person-column th.sticky-schedule");
-    if (!wrap || !target) return;
-    const frozenBoundary = frozenBoundaryCell ? frozenBoundaryCell.offsetLeft + frozenBoundaryCell.offsetWidth : 0;
-    const nextLeft = Math.max(0, target.offsetLeft - frozenBoundary - 12);
-    wrap.scrollTo({ left: nextLeft, behavior: "smooth" });
+    if (!jumpSelect) return;
+    scrollAssignmentGraphToGroup(jumpSelect.value);
   };
 
   jumpButton?.addEventListener("click", jumpToTimeBlock);
@@ -10231,10 +10301,14 @@ function renderChart(filteredTeam) {
       boardJumpRoot.innerHTML = "";
       boardJumpRoot.classList.remove("is-visible");
     }
+    if (assignmentTimeBlockGraphRoot) {
+      assignmentTimeBlockGraphRoot.innerHTML = `<div class="empty-state">No assignments match this filter.</div>`;
+    }
     chartRoot.innerHTML = `<div class="empty-state">No specialists match this filter.</div>`;
     return;
   }
 
+  renderTimeBlockAssignmentGraph(visiblePeople, groups, selectedAssignment);
   chartRoot.innerHTML = renderSpreadsheetChartMarkup(visiblePeople, groups, { editable: true, compactPersonColumn: true });
   renderAssignmentGraphJump(groups);
 
@@ -11427,6 +11501,11 @@ startNotificationWatcher();
 archivePreviewDetails?.addEventListener("toggle", () => {
   if (archivePreviewSummaryAction) {
     archivePreviewSummaryAction.textContent = archivePreviewDetails.open ? "Collapse" : "Expand";
+  }
+});
+assignmentTimeBlockDetails?.addEventListener("toggle", () => {
+  if (assignmentTimeBlockSummaryAction) {
+    assignmentTimeBlockSummaryAction.textContent = assignmentTimeBlockDetails.open ? "Collapse" : "Expand";
   }
 });
 applyRosterEntries(loadRoster(), { preserveCurrent: false, skipRender: true });
