@@ -108,6 +108,20 @@ function formatPermanentScheduleSummary(profile) {
   return parts.join(" • ") || "No permanent schedule set";
 }
 
+function normalizeDayScheduleMap(daySchedules) {
+  const normalized = {};
+  if (!daySchedules || typeof daySchedules !== "object") return normalized;
+  const validDays = new Set(weekDayDefinitions.map((day) => day.key));
+  Object.entries(daySchedules).forEach(([dayKey, schedule]) => {
+    const normalizedDayKey = String(dayKey || "").trim().toLowerCase();
+    const normalizedSchedule = String(schedule || "").trim();
+    if (!validDays.has(normalizedDayKey) || !normalizedSchedule) return;
+    if (!parseScheduleWindow(normalizedSchedule)) return;
+    normalized[normalizedDayKey] = normalizedSchedule;
+  });
+  return normalized;
+}
+
 const rawInitialTeam = [
   {
     "name": "Ireal James",
@@ -3201,15 +3215,24 @@ function toggleSpreadsheetOutState(person, shouldBeOut, status = "Out of Office"
   }
 }
 
-function saveShiftChange(person, schedule, mode, workdays = null) {
+function saveShiftChange(person, schedule, mode, workdays = null, daySchedules = null) {
   const overrides = loadShiftOverrides();
   const personKey = personId(person);
   const todayKey = getTodayKey();
   const previousProfile = getStoredScheduleProfile(person, todayKey, getCurrentWeekdayKey());
   const normalizedWorkdays = normalizeWorkdays(workdays || person.workdays);
+  const existingPermanent = overrides.permanent[personKey] || {};
+  const normalizedDaySchedules = normalizeDayScheduleMap(
+    daySchedules === null ? existingPermanent.daySchedules || previousProfile.daySchedules || {} : daySchedules
+  );
 
   if (mode === "permanent") {
-    overrides.permanent[personKey] = { schedule, workdays: normalizedWorkdays };
+    overrides.permanent[personKey] = {
+      ...existingPermanent,
+      schedule,
+      workdays: normalizedWorkdays,
+      daySchedules: normalizedDaySchedules,
+    };
     overrides.daily[todayKey] = overrides.daily[todayKey] || {};
     overrides.daily[todayKey][personKey] = { schedule };
   } else {
@@ -3227,6 +3250,9 @@ function saveShiftChange(person, schedule, mode, workdays = null) {
         `Previous schedule: ${previousProfile.baseSchedule}`,
         `New schedule: ${schedule}`,
         mode === "permanent" ? `Workdays: ${formatWorkdaysSummary(normalizedWorkdays)}` : "Workdays: unchanged",
+        mode === "permanent" && Object.keys(normalizedDaySchedules).length
+          ? `Weekday Scheduler: ${formatPermanentScheduleSummary({ schedule: "", daySchedules: normalizedDaySchedules })}`
+          : "Weekday Scheduler: default shift only",
         mode === "permanent" ? "Scope: Permanent default schedule" : "Scope: Today only",
       ],
     });
