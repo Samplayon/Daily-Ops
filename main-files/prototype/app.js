@@ -2595,6 +2595,7 @@ let assignmentColorsState = null;
 let assignmentRenameState = null;
 let skillsMatrixState = null;
 let rosterState = null;
+let shiftOverridesState = null;
 let rosterSearchTerm = "";
 
 const automationDefinitions = [
@@ -2954,20 +2955,26 @@ function renderReshuffleReportCard() {
   `;
 }
 
+function normalizeShiftOverridesPayload(payload) {
+  return {
+    permanent: payload && typeof payload === "object" && payload.permanent && typeof payload.permanent === "object" ? payload.permanent : {},
+    daily: payload && typeof payload === "object" && payload.daily && typeof payload.daily === "object" ? payload.daily : {},
+  };
+}
+
 function loadShiftOverrides() {
+  if (shiftOverridesState) {
+    return cloneData(shiftOverridesState);
+  }
+
   try {
     const raw = window.localStorage.getItem(shiftOverrideStorageKey);
-    if (!raw) {
-      return { permanent: {}, daily: {} };
-    }
-    const parsed = JSON.parse(raw);
-    return {
-      permanent: parsed?.permanent || {},
-      daily: parsed?.daily || {},
-    };
+    shiftOverridesState = normalizeShiftOverridesPayload(raw ? JSON.parse(raw) : { permanent: {}, daily: {} });
   } catch (error) {
-    return { permanent: {}, daily: {} };
+    shiftOverridesState = { permanent: {}, daily: {} };
   }
+
+  return cloneData(shiftOverridesState);
 }
 
 function cloneAssignments(assignments) {
@@ -2979,7 +2986,9 @@ function getDailyOverrideEntry(overrides, dateKey, personKey) {
 }
 
 function saveShiftOverrides(payload) {
-  window.localStorage.setItem(shiftOverrideStorageKey, JSON.stringify(payload));
+  shiftOverridesState = normalizeShiftOverridesPayload(payload);
+  window.localStorage.setItem(shiftOverrideStorageKey, JSON.stringify(shiftOverridesState));
+  return cloneData(shiftOverridesState);
 }
 
 function getInitialPersonRecord(person) {
@@ -3170,6 +3179,7 @@ function toggleSpreadsheetOutState(person, shouldBeOut, status = "Out of Office"
     existingEntry.schedule = nextStatus;
     overrides.daily[todayKey][personKey] = existingEntry;
     saveShiftOverrides(overrides);
+    void syncRemoteShiftOverrides(overrides).catch(() => {});
     person.schedule = nextStatus;
     person.assignments = person.assignments.map(() => [nextStatus, false]);
     if (currentView === 'admin') {
@@ -3198,6 +3208,7 @@ function toggleSpreadsheetOutState(person, shouldBeOut, status = "Out of Office"
     delete overrides.daily[todayKey];
   }
   saveShiftOverrides(overrides);
+  void syncRemoteShiftOverrides(overrides).catch(() => {});
 
   if (snapshot?.assignments?.length) {
     person.schedule = snapshot.schedule;
@@ -3241,6 +3252,7 @@ function saveShiftChange(person, schedule, mode, workdays = null, daySchedules =
   }
 
   saveShiftOverrides(overrides);
+  void syncRemoteShiftOverrides(overrides).catch(() => {});
   applyStoredShiftOverrides();
   if (currentView === "admin") {
     void appendAuditLogEntry({
@@ -4236,12 +4248,15 @@ async function syncSkillsMatrixFromServer() {
     const rosterToApply = resolveRosterEntries(payload?.roster, loadRoster());
     applyRosterEntries(rosterToApply, { preserveCurrent: false, skipRender: true });
     saveSkillsMatrix(payload?.skills || defaultSkillsMatrix());
+    saveShiftOverrides(payload?.shiftOverrides || loadShiftOverrides());
     applySkillsMatrixToCollection(team, skillsMatrixState);
+    applyStoredShiftOverrides();
     render();
   } catch {
     applyRosterEntries(resolveRosterEntries(loadRoster(), defaultRoster()), { preserveCurrent: false, skipRender: true });
     refreshAdminCollections();
     applySkillsMatrixToCollection(team, loadSkillsMatrix());
+    applyStoredShiftOverrides();
     render();
   }
 }
@@ -4255,16 +4270,47 @@ async function persistSkillsMatrix(skillsMatrix) {
   const response = await fetch("/api/skills", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ skills: skillsMatrix, roster: loadRoster() }),
+    body: JSON.stringify({ skills: skillsMatrix, roster: loadRoster(), shiftOverrides: loadShiftOverrides() }),
   });
   const payload = parseJsonSafely(await response.text(), {});
   if (!response.ok) {
-    throw new Error(payload.details || payload.error || `Failed to save skills (${response.status})`);
+    throw new Error(payload.details || payload.error || "Failed to save skills.");
   }
   if (Object.prototype.hasOwnProperty.call(payload || {}, "roster")) {
     saveRoster(resolveRosterEntries(payload.roster, loadRoster()));
   }
+  if (Object.prototype.hasOwnProperty.call(payload || {}, "shiftOverrides")) {
+    saveShiftOverrides(payload.shiftOverrides || loadShiftOverrides());
+  }
   return saveSkillsMatrix(payload?.skills || skillsMatrix);
+}
+
+async function syncRemoteShiftOverrides(overrides) {
+  if (!backendAvailable) {
+    saveShiftOverrides(overrides);
+    return cloneData(overrides);
+  }
+
+  const response = await fetch("/api/skills", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      skills: loadSkillsMatrix(),
+      roster: loadRoster(),
+      shiftOverrides: overrides,
+    }),
+  });
+  const payload = parseJsonSafely(await response.text(), {});
+  if (!response.ok) {
+    throw new Error(payload.details || payload.error || "Failed to save shift overrides.");
+  }
+  if (Object.prototype.hasOwnProperty.call(payload || {}, "roster")) {
+    saveRoster(resolveRosterEntries(payload.roster, loadRoster()));
+  }
+  if (Object.prototype.hasOwnProperty.call(payload || {}, "skills")) {
+    saveSkillsMatrix(payload.skills || loadSkillsMatrix());
+  }
+  return saveShiftOverrides(payload?.shiftOverrides || overrides);
 }
 
 function getSkillsMatrixTeam() {

@@ -9,6 +9,7 @@ const CUSTOM_ASSIGNMENTS_OBJECT = "__config__-custom-assignments.json";
 const SKILLS_MATRIX_OBJECT = "__config__-skills-matrix.json";
 const ROSTER_OBJECT = "__config__-roster.json";
 const SPECIALIST_LOGS_OBJECT = "__config__-specialist-logs.json";
+const SHIFT_OVERRIDES_OBJECT = "__config__-shift-overrides.json";
 
 const PLAN_SCHEMA = {
   type: "object",
@@ -620,6 +621,36 @@ async function writeRoster(entries) {
   return normalized;
 }
 
+function defaultShiftOverrides() {
+  return { permanent: {}, daily: {} };
+}
+
+function normalizeShiftOverrides(payload) {
+  return {
+    permanent: payload && typeof payload === "object" && payload.permanent && typeof payload.permanent === "object" ? payload.permanent : {},
+    daily: payload && typeof payload === "object" && payload.daily && typeof payload.daily === "object" ? payload.daily : {},
+  };
+}
+
+async function readShiftOverrides() {
+  try {
+    const { body } = await downloadObject(SHIFT_OVERRIDES_OBJECT);
+    return normalizeShiftOverrides(JSON.parse(body.toString("utf8") || "{}"));
+  } catch {
+    return defaultShiftOverrides();
+  }
+}
+
+async function writeShiftOverrides(overrides) {
+  const normalized = normalizeShiftOverrides(overrides);
+  await uploadObject(
+    SHIFT_OVERRIDES_OBJECT,
+    "application/json; charset=utf-8",
+    Buffer.from(JSON.stringify(normalized, null, 2))
+  );
+  return normalized;
+}
+
 async function readSpecialistLogs() {
   try {
     const { body } = await downloadObject(SPECIALIST_LOGS_OBJECT);
@@ -852,6 +883,7 @@ module.exports = {
   readJsonBody,
   readRoster,
   readSchedulingRules,
+  readShiftOverrides,
   readSkillsMatrix,
   readSpecialistLogs,
   saveArchiveSnapshot,
@@ -865,6 +897,7 @@ module.exports = {
   writeCustomAssignments,
   writeRoster,
   writeSchedulingRules,
+  writeShiftOverrides,
   writeSkillsMatrix,
   writeSpecialistLogs,
 };

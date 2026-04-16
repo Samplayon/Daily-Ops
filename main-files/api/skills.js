@@ -1,9 +1,9 @@
-const { readJsonBody, readRoster, readSkillsMatrix, sendArchiveError, sendJson, writeRoster, writeSkillsMatrix } = require("./_lib/core");
+const { readJsonBody, readRoster, readShiftOverrides, readSkillsMatrix, sendArchiveError, sendJson, writeRoster, writeShiftOverrides, writeSkillsMatrix } = require("./_lib/core");
 
 module.exports = async function handler(req, res) {
   try {
     if (req.method === "GET") {
-      return sendJson(res, { ok: true, skills: await readSkillsMatrix(), roster: await readRoster() });
+      return sendJson(res, { ok: true, skills: await readSkillsMatrix(), roster: await readRoster(), shiftOverrides: await readShiftOverrides() });
     }
 
     if (req.method === "POST") {
@@ -14,10 +14,14 @@ module.exports = async function handler(req, res) {
       const roster = Object.prototype.hasOwnProperty.call(data || {}, "roster")
         ? await writeRoster(data?.roster || [])
         : await readRoster();
+      const shiftOverrides = Object.prototype.hasOwnProperty.call(data || {}, "shiftOverrides")
+        ? await writeShiftOverrides(data?.shiftOverrides || {})
+        : await readShiftOverrides();
       return sendJson(res, {
         ok: true,
         skills,
         roster,
+        shiftOverrides,
       });
     }
 
