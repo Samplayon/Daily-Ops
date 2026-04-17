@@ -10181,8 +10181,12 @@ function scrollAssignmentGraphToGroup(groupStart) {
   const target = chartRoot.querySelector(`th.time-group-col[data-group-start="${groupStart}"]`);
   const frozenBoundaryCell = chartRoot.querySelector(".assignment-spreadsheet.condensed-person-column th.sticky-schedule");
   if (!wrap || !target) return;
-  const frozenBoundary = frozenBoundaryCell ? frozenBoundaryCell.offsetLeft + frozenBoundaryCell.offsetWidth : 0;
-  const nextLeft = Math.max(0, target.offsetLeft - frozenBoundary - 12);
+  const wrapRect = wrap.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const frozenBoundary = frozenBoundaryCell
+    ? frozenBoundaryCell.getBoundingClientRect().right - wrapRect.left
+    : 0;
+  const nextLeft = Math.max(0, wrap.scrollLeft + (targetRect.left - wrapRect.left) - frozenBoundary + 1);
   wrap.scrollTo({ left: nextLeft, behavior: "smooth" });
 }
 

@@ -2531,7 +2531,7 @@ body.assignment-graph-open::after {
 
 
 .assignment-spreadsheet tbody tr:hover td {
-  background: rgba(0, 201, 210, 0.04);
+  background: #eefbfd;
 }
 
 .assignment-spreadsheet tr:last-child td {
@@ -2560,7 +2560,7 @@ body.assignment-graph-open::after {
 
 
 .assignment-spreadsheet tbody tr:hover .sticky-col {
-  background: rgba(240, 252, 253, 0.98);
+  background: #eefbfd;
 }
 
 .sticky-out {
@@ -2613,6 +2613,7 @@ body.assignment-graph-open::after {
   max-width: 150px;
   z-index: 23;
   box-shadow: 10px 0 18px -12px rgba(15, 23, 42, 0.42);
+  overflow: hidden;
 }
 
 .sticky-schedule::after {
@@ -4317,6 +4318,7 @@ body.dark-mode .specialist-log-empty {
   min-width: 220px;
   max-width: 220px;
   z-index: 26;
+  overflow: hidden;
 }
 
 .assignment-spreadsheet.condensed-person-column .sticky-schedule {
@@ -4325,6 +4327,7 @@ body.dark-mode .specialist-log-empty {
   min-width: 132px;
   max-width: 132px;
   z-index: 25;
+  overflow: hidden;
 }
 
 .assignment-spreadsheet.condensed-person-column .spreadsheet-schedule-cell,
@@ -4472,7 +4475,7 @@ body[data-theme="dark"] .assignment-spreadsheet th.sticky-col {
 
 body[data-theme="dark"] .assignment-spreadsheet tbody tr:hover td,
 body[data-theme="dark"] .assignment-spreadsheet tbody tr:hover .sticky-col {
-  background: rgba(0, 201, 210, 0.1);
+  background: #132531;
 }
 
 body[data-theme="dark"] .sticky-schedule {
