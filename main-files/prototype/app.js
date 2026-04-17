@@ -9811,7 +9811,6 @@ function renderRosterManager() {
           <span>Search roster</span>
           <input id="roster-search-input" type="text" class="portal-input" placeholder="Type a name, manager, title, or team" value="${escapeHtml(rosterSearchTerm || "")}" />
         </label>
-        <button type="button" class="secondary-button roster-clear-button" id="clear-roster-button">Clear Roster</button>
       </div>
       <div class="roster-manager-add">
         <label>
@@ -9897,22 +9896,6 @@ function renderRosterManager() {
     }
   });
 
-  rosterManagerCard.querySelector('#clear-roster-button')?.addEventListener('click', async () => {
-    if (!window.confirm('Clear the full roster? You can add people back right after.')) return;
-    try {
-      const payload = await persistRoster([]);
-      applyRosterEntries(payload.roster, { preserveCurrent: false, skipRender: true });
-      if (payload.skills) applySkillsMatrixToCollection(team, payload.skills);
-      await appendAuditLogEntry({
-        actionType: 'roster-cleared',
-        summary: 'Cleared the full roster',
-        details: ['Roster manager'],
-      });
-      render();
-    } catch (error) {
-      console.error('Unable to clear roster', error);
-    }
-  });
 
   rosterManagerCard.querySelectorAll('[data-delete-roster-person]').forEach((button) => {
     button.addEventListener('click', async () => {
