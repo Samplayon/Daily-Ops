@@ -307,7 +307,6 @@ body[data-theme="dark"] #agent-shell .agent-day-row {
   background: rgba(255, 255, 255, 0.04);
 }
 
-body[data-theme="dark"] #agent-shell .agent-now-assignment,
 body[data-theme="dark"] #agent-shell .assignment-chip {
   background: color-mix(in srgb, var(--agent-accent, #00c9d2) 24%, rgba(255, 255, 255, 0.06) 76%);
   color: var(--agent-text);
@@ -3139,16 +3138,18 @@ body[data-theme="dark"] #admin-shell .spreadsheet-assignment-pill {
 }
 
 .agent-now-assignment {
-  display: block;
-  width: 100%;
-  padding: 18px 20px;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  padding: 18px 24px;
   border-radius: 20px;
   font-size: clamp(1.3rem, 3vw, 2rem);
   line-height: 1.1;
   font-family: "Space Grotesk", sans-serif;
   text-align: left;
+  align-self: flex-start;
   background: color-mix(in srgb, var(--agent-accent, #00c9d2) 22%, white 78%);
-  color: var(--agent-text, var(--ink));
+  color: #05080d;
   border: 1px solid color-mix(in srgb, var(--agent-accent, #00c9d2) 28%, rgba(15, 23, 42, 0.08) 72%);
 }
 
@@ -3689,8 +3690,7 @@ body[data-theme="dark"] #agent-shell .agent-alert-status {
   color: var(--agent-text) !important;
 }
 
-body[data-theme="dark"] #agent-shell .assignment-chip,
-body[data-theme="dark"] #agent-shell .agent-now-assignment {
+body[data-theme="dark"] #agent-shell .assignment-chip {
   background: color-mix(in srgb, var(--agent-accent, #00c9d2) 20%, rgba(255, 255, 255, 0.08) 80%) !important;
   border-color: color-mix(in srgb, var(--agent-accent, #00c9d2) 30%, rgba(255, 255, 255, 0.08) 70%) !important;
   color: #f8fcff !important;
@@ -4660,4 +4660,10 @@ body[data-theme="dark"] .agent-day-toggle,
 body[data-theme="dark"] .out-only-card {
   background: linear-gradient(180deg, rgba(0, 201, 210, 0.12), rgba(255, 255, 255, 0.05));
   border-color: rgba(0, 201, 210, 0.18);
+}
+
+body[data-theme="dark"] #agent-shell .agent-now-assignment {
+  color: #05080d !important;
+  background: color-mix(in srgb, var(--agent-accent, #00c9d2) 24%, rgba(255, 255, 255, 0.18) 76%) !important;
+  border-color: color-mix(in srgb, var(--agent-accent, #00c9d2) 30%, rgba(15, 23, 42, 0.08) 70%) !important;
 }

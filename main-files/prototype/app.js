@@ -10311,6 +10311,15 @@ function renderChart(filteredTeam) {
     });
   });
 
+  chartRoot.querySelectorAll(".spreadsheet-out-status-select").forEach((select) => {
+    select.addEventListener("change", () => {
+      const person = getPersonById(select.dataset.personId || "");
+      if (!person) return;
+      toggleSpreadsheetOutState(person, true, select.value || "Out of Office");
+      render();
+    });
+  });
+
   chartRoot.querySelectorAll(".spreadsheet-assignment-select").forEach((select) => {
     select.addEventListener("change", () => {
       const person = getPersonById(select.dataset.personId || "");
