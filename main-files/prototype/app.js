@@ -9998,7 +9998,14 @@ function renderSkillsMatrix(filteredTeam = getSkillsMatrixTeam()) {
       if (action) action.textContent = card.open ? "Collapse" : "Expand";
     };
     syncAction();
-    card.addEventListener("toggle", syncAction);
+    card.addEventListener("toggle", () => {
+      if (card.open) {
+        skillsMatrix.querySelectorAll(".skills-person-card").forEach((otherCard) => {
+          if (otherCard !== card) otherCard.open = false;
+        });
+      }
+      syncAction();
+    });
   });
 
   skillsMatrix.querySelectorAll("input[type='checkbox']").forEach((checkbox) => {
