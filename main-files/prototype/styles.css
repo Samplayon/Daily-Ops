@@ -780,17 +780,17 @@ h1 {
 
 .layout {
   display: grid;
-  gap: 24px;
+  gap: 28px;
 }
 
 .assistant-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 24px;
+  gap: 28px;
 }
 
 .panel {
-  padding: 24px;
+  padding: 28px;
 }
 
 #admin-shell .panel-header h2 {
@@ -836,9 +836,9 @@ h1 {
 .panel-header {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: 18px;
   align-items: end;
-  margin-bottom: 18px;
+  margin-bottom: 22px;
 }
 
 .panel-badge {
@@ -864,13 +864,13 @@ h1 {
 .filters {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 18px;
 }
 
 .command-box {
   display: grid;
-  gap: 14px;
-  padding: 18px;
+  gap: 16px;
+  padding: 20px;
   border-radius: 22px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 250, 0.98));
   border: 2px solid rgba(5, 8, 13, 0.08);
@@ -1289,13 +1289,14 @@ select {
 }
 
 .panel-workspace {
-  padding: 18px;
+  padding: 24px;
 }
 
 .workspace-tabs {
   display: flex;
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
 }
 
 .workspace-tab {
@@ -1308,15 +1309,21 @@ select {
   color: #f7feff;
 }
 
+.workspace-view {
+  display: grid;
+  gap: 22px;
+  align-content: start;
+}
+
 .workspace-view.hidden {
   display: none;
 }
 
 .nested-panel {
-  border-radius: 22px;
+  border-radius: 24px;
   box-shadow: none;
   border: 2px solid rgba(5, 8, 13, 0.12);
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .shift-search-row {
@@ -1335,14 +1342,14 @@ select {
 
 .shift-editor-list {
   display: grid;
-  gap: 14px;
+  gap: 18px;
 }
 
 .shift-editor-card {
   display: grid;
   grid-template-columns: minmax(220px, 0.85fr) minmax(320px, 1.15fr);
-  gap: 16px;
-  padding: 18px;
+  gap: 18px;
+  padding: 22px;
   border-radius: 22px;
   border: 2px solid rgba(5, 8, 13, 0.12);
   background: rgba(255, 255, 255, 0.84);
@@ -1370,12 +1377,12 @@ select {
 
 .automations-list {
   display: grid;
-  gap: 16px;
+  gap: 20px;
 }
 
 .rules-card {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
 .admin-password-form {
@@ -1443,8 +1450,8 @@ select {
 
 .rule-builder-card {
   display: grid;
-  gap: 16px;
-  padding: 18px;
+  gap: 18px;
+  padding: 22px;
   border-radius: 20px;
   border: 2px solid rgba(0, 201, 210, 0.22);
   background: linear-gradient(180deg, rgba(227, 250, 252, 0.92), rgba(255, 255, 255, 0.9));
@@ -1506,7 +1513,7 @@ select {
   border-radius: 20px;
   border: 2px solid rgba(5, 8, 13, 0.12);
   background: rgba(255, 255, 255, 0.7);
-  padding: 16px 18px;
+  padding: 18px 20px;
 }
 
 .rules-manual-summary {
@@ -1574,15 +1581,15 @@ body.dark-mode .rules-manual-summary {
 
 .assignment-manager-list {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .assignment-manager-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
+  gap: 16px;
+  padding: 16px 18px;
   border-radius: 16px;
   border: 2px solid rgba(5, 8, 13, 0.12);
   background: rgba(255, 255, 255, 0.72);
@@ -1679,7 +1686,7 @@ body.dark-mode .rules-manual-summary {
 }
 
 .automation-section-body {
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
 
@@ -1758,8 +1765,8 @@ body.dark-mode .rules-manual-summary {
 .automation-card-body {
   display: grid;
   grid-template-columns: 1.5fr auto;
-  gap: 18px;
-  padding: 0 20px 20px;
+  gap: 22px;
+  padding: 0 22px 22px;
 }
 
 .automation-copy {
@@ -1897,17 +1904,17 @@ body.dark-mode .rules-manual-summary {
 
 .archives-list {
   display: grid;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .archive-row {
   width: 100%;
   display: flex;
   justify-content: space-between;
-  gap: 14px;
+  gap: 16px;
   align-items: center;
-  padding: 12px 16px;
+  padding: 14px 18px;
   border-radius: 16px;
   border: 2px solid rgba(5, 8, 13, 0.12);
   background: rgba(255, 255, 255, 0.78);
@@ -1939,7 +1946,7 @@ body.dark-mode .rules-manual-summary {
   border: 2px solid rgba(5, 8, 13, 0.12);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.82);
-  padding: 14px 16px;
+  padding: 16px 18px;
 }
 
 .archive-preview.hidden {
@@ -1993,8 +2000,8 @@ body.dark-mode .rules-manual-summary {
 }
 
 .archive-lookup {
-  margin-bottom: 16px;
-  padding: 16px 18px;
+  margin-bottom: 18px;
+  padding: 18px 20px;
   border: 2px solid rgba(5, 8, 13, 0.12);
   border-radius: 18px;
   background: rgba(248, 250, 251, 0.95);
@@ -2116,7 +2123,7 @@ body.dark-mode .rules-manual-summary {
 
 .skills-people-list {
   display: grid;
-  gap: 14px;
+  gap: 18px;
 }
 
 .skills-person-card {
@@ -2131,8 +2138,8 @@ body.dark-mode .rules-manual-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 18px 22px;
+  gap: 18px;
+  padding: 20px 22px;
   cursor: pointer;
 }
 
@@ -2176,6 +2183,7 @@ body.dark-mode .rules-manual-summary {
 .skills-person-body {
   padding: 0 22px 22px;
   border-top: 1px solid rgba(5, 8, 13, 0.08);
+  margin-top: 2px;
 }
 
 .skills-checkbox-grid {
@@ -2226,7 +2234,7 @@ body.dark-mode .rules-manual-summary {
 }
 
 .assignment-timeblock-panel {
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 .assignment-timeblock-graph {
@@ -2341,7 +2349,7 @@ body.assignment-graph-open::after {
 .chart-row {
   display: grid;
   grid-template-columns: 140px minmax(1180px, 1fr) 90px;
-  gap: 14px;
+  gap: 16px;
   align-items: center;
 }
 
@@ -4346,4 +4354,56 @@ body[data-theme="dark"] #admin-shell .weekday-schedule-toggle {
   .weekday-schedule-row {
     grid-template-columns: 1fr;
   }
+}
+
+.panel > .panel-header:last-child {
+  margin-bottom: 0;
+}
+
+.panel > .panel-header + .nested-panel,
+.panel > .panel-header + .rules-card,
+.panel > .panel-header + .assistant-review,
+.panel > .panel-header + .archive-lookup,
+.panel > .panel-header + .archive-preview,
+.panel > .panel-header + .skills-agent-search-row,
+.panel > .panel-header + .skills-people-list,
+.panel > .panel-header + .automations-list,
+.panel > .panel-header + .shift-editor-list,
+.panel > .panel-header + .assignment-chart,
+.panel > .panel-header + .panel-chat,
+.panel > .panel-header + .panel-review {
+  margin-top: 4px;
+}
+
+.portal-panel,
+.hero-copy,
+.hero-card,
+.panel,
+.rules-card,
+.assignment-manager-row,
+.archive-row,
+.archive-preview,
+.archive-lookup,
+.skills-person-card,
+.shift-editor-card,
+.automation-card,
+.rule-builder-card,
+.rules-manual-editor,
+.command-box {
+  box-shadow: 0 14px 34px rgba(5, 8, 13, 0.05);
+}
+
+.panel-chat,
+.panel-review,
+.assignment-timeblock-panel,
+.archive-preview,
+.archive-lookup,
+.rules-manual-editor,
+.rule-builder-card,
+.shift-editor-card,
+.skills-person-card,
+.assignment-manager-row,
+.archive-row,
+.automation-card {
+  scroll-margin-top: 20px;
 }
